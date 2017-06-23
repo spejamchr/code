@@ -1,0 +1,17 @@
+#!/usr/bin/env ruby
+require 'twilio-ruby'
+
+msg = ARGV[0]
+
+# put your own credentials here
+account_sid = 'AC098b0d1b6e9f10de310d32cb1c6f27b0'
+auth_token = '77196c814e60797d2d417d22438fae40'
+
+# set up a client to talk to the Twilio REST API
+@client = Twilio::REST::Client.new account_sid, auth_token
+
+@client.account.messages.create(
+  from: '+16828032362',
+  to: '+18177710835',
+  body: msg
+)

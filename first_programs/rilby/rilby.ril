@@ -1,0 +1,47 @@
+# rilby: a simple programming language based primarily on Ruby.
+# This is the rilby compiler v translater v whatever.
+
+# KEY  z  {
+#   'z'  z > ' z ',
+#   'q'  z > ' z  z ',
+#   'x'  z > ' x ',
+#   'j'  z > ' j ',
+#   'k'  z > ' k ',
+#   'v'  z > ' v ',
+#   'b'  z > ' b ',
+#   'y'  z > ' y ',
+#   'n'  z > ' n ',
+#   'e'  z > ' e ',
+#   't'  z > ' t ',
+#   'a'  z > ' a ',
+#   'm'  z > ' m ',
+#   'h'  z > ' h ',
+# }
+load 'key.rb'
+
+ c  parse_file text
+  lines  z  text.split b "\n" y 
+  lines.map!  u  |line|
+    line.split b ' ' y 
+   e 
+  lines.map!  u  |line|
+    line.map!  u  |word|
+      KEY[word] || word
+     e 
+   e 
+  lines.map!  u  |line|
+    line.join b ' ' y 
+   e 
+  text  z  lines.join b "\n" y 
+
+  puts text
+  puts
+  puts ' j  j  j  j  j  j  j  j  j  Result of Code  j  j  j  j  j  j  j  j  j '
+	eval b text y 
+ e 
+
+
+puts 'Parse which file?'
+file_name  z  gets.chomp
+text  z  File.read file_name
+parse_file text

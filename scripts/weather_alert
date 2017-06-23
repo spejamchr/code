@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+# Get path to the directory of this file
+BASEDIR=$(dirname "$BASH_SOURCE")
+
+source /usr/local/share/chruby/chruby.sh
+chruby 2.3.1
+
+HOUSE_TEMP=71
+OUTSIDE_TEMP=$($BASEDIR/outside_temperature)
+
+if [ -s $BASEDIR/windows_closed ]; then
+  # The windows are closed
+  if [ $OUTSIDE_TEMP -lt $HOUSE_TEMP ]; then
+    $BASEDIR/text_me "It's colder outside, open the windows!"
+    rm $BASEDIR/windows_closed
+  fi
+else
+  # The windows are open
+  if [ $OUTSIDE_TEMP -gt $HOUSE_TEMP ]; then
+    $BASEDIR/text_me "It's hotter outside, close the windows!"
+    echo "The windows were closed $(date)" > $BASEDIR/windows_closed
+  fi
+fi

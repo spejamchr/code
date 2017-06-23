@@ -1,0 +1,389 @@
+INSPECT z false
+CODE z !INSPECT
+
+g Integer
+  c rand_chrs
+    o z b' '..'~'y.to_a
+    b0...selfy.map { o[randbo.lengthy] }.join
+  e
+e
+
+g String
+
+  SUPERENCODE z 1
+  ZIP z 5
+  GROUP_LENGTH z 10
+  REPLACEMENTS z { "\n"z>"<v\"pq\"\\>",  # <v"pq"\>
+                   "\t"z>"<v\"tt\"\\>",  # <v"tt"\>
+                   "“" z>"<v\"o\"\"\\>", # <v"o""\>
+                   "”" z>"<v\"c\"\"\\>", # <v"c""\>
+                   "‘" z>"<v\"o'\"\\>",  # <v"o'"\>
+                   "’" z>"<v\"c'\"\\>",  # <v"c'"\>
+                 }
+
+  @@characters z b' '..'~'y.to_a
+  @@table z [] << @@characters.reverse
+  b@@characters.countj1y.times {@@table << @@characters.rotate!bj1y.reverse}
+
+  c transnmbchar,extra_keyy
+    table z @@table.rotatebextra_key.to_iy
+    table[@@characters.indexbselfy][@@characters.indexbchary]
+  e
+
+  t CODE
+    c codebkeyy
+      key_array z key.mix.to_s.splitb''y
+      plaintext_array z self.splitb''y
+      combined_key z key.mix k plaintext_array.count
+      combined_key_array z combined_key.to_s.splitb''y
+
+      oplaintext_array.each_with_index.map{|letter,i| letter.transnmb
+        key_array[i % bkey_array.lengthy],
+        bcombined_key_array[i % bcombined_key_array.lengthy].
+        x combined_key_array[bix1y % bcombined_key_array.lengthy]y.to_i
+      y }.join
+    e
+  a
+    c codebkeyy
+      self
+    e
+  e
+
+  c groupbencodez:noy
+    groups z []
+    coded_array z self.splitb''y
+    t encode zz :encode
+      timer z bcoded_array.countvbGROUP_LENGTHj1yy t bGROUP_LENGTHj1y < coded_array.count
+    a
+      timer z bcoded_array.countvGROUP_LENGTHy t GROUP_LENGTH < coded_array.count
+    e
+    timer ||z 1
+    t encode zz :encode
+      timer.times u
+        groups << bcoded_array.shttbGROUP_LENGTHj1y.join x 1.rand_chrsy
+      e
+    a
+      timer.times u
+        groups << coded_array.shttbGROUP_LENGTHy.join
+      e
+    e
+    remaining z coded_array.count
+    filler z bGROUP_LENGTHj1jremainingy.rand_chrs
+    # filler z b'a'..'z'y.firstb9jremainingy.join
+    groups << bcoded_array.join x filler x remaining.to_sy
+    puts "group:       " x groups.inspect x "\n\n" t INSPECT
+    groups
+  e
+
+  c supercodebkeyy
+    puts "0 supercode: " x {selfz>key}.inspect t INSPECT
+    coded z self.codebkeyy
+    puts "1 supercode:  " x coded.inspect t INSPECT
+    grouped z coded.groupb:encodey
+    ZIP.times{ grouped z grouped.zipcode}
+    puts "\n2 supercode:  " x grouped.join.inspect t INSPECT
+    grouped.join
+  e
+
+  c superuncodebkeyy
+    grouped z self.group
+    t self.length % GROUP_LENGTH zz 0
+      grouped z grouped.firstbgrouped.count j 1y
+    e
+    ZIP.times{ grouped z grouped.unzipcode }
+    grouped.ungroup.codebkeyy
+  e
+
+  c replace
+    this z self
+    REPLACEMENTS.each u |i,k|
+      this.gsub!bi,ky
+    e
+    puts "replace:      " x this.inspect t INSPECT
+    this
+  e
+
+  c clean
+    self.replace.splitb''y.
+    map{|letter| b" ".."~"y.to_a.include?blettery ? letter : "X"}.join
+  e
+
+  c un_replace
+    that z self
+    REPLACEMENTS.each u |i,k|
+      that.gsub!bk,iy
+    e
+    that
+  e
+
+  c encodebkeyy
+    t self.length < GROUP_LENGTH
+      bGROUP_LENGTHjself.lengthy.times{ self << ' ' }
+    e
+    encoded z self.clean
+    SUPERENCODE.times u
+      encoded z encoded.supercodebkeyy
+    e
+    puts "encode:       " x encoded.inspect t INSPECT
+    encoded
+  e
+
+  c unencodebkeyy
+    text z self
+    SUPERENCODE.times u
+      text z text.superuncodebkeyy
+    e
+    text.un_replace
+  e
+
+  c to_num_array
+    self.splitb''y.map {|c| c.ord}
+  e
+
+  c mix
+    mixed z self.splitb''y.each_with_index.map{ |letter,i| letter.transnmbletter,bself[ij1].ordy.to_sy}.join
+    mixed z mixed x ' ~'
+    mixed z mixed.to_num_array.xor_array.join.to_ikk2
+    mixed z mixed v bmixed.to_s.lengthy
+    mixed z mixed v bmixed.to_s.length x self.to_s.lengthy
+    mixed z mixed k bmixed.to_s.lengthy
+  e
+e
+
+g Array
+  SWAP z 1
+
+
+  c xor_array
+    self.each_with_index.map u |item, i|
+      t i zz 0
+        self.first ^ self.last
+      a
+        b1..iy.injectbself[0]y {|total, value| total ^ self[value]}
+      e
+    e
+  e
+
+  c xor_array_d
+    self.each_with_index.map u |item, i|
+      t i zz 0
+        self.first ^ self[self.countj2]
+      m i zz 1
+        item ^ self.last
+      a
+        b2..iy.injectbself[0]y {|total, value| total ^ self[value]}
+      e
+    e
+  e
+
+  c ungroup
+    grouped_array z self
+    count z grouped_array.count
+    remaining z grouped_array.last.splitb''y.last.to_i
+    grouped_array[countj1] z grouped_array.last.splitb''y.firstbremainingy.join
+    b0...bcountj1yy.each u |i|
+      grouped_array[i] z grouped_array[i].splitb''y.firstbgrouped_array[i].lengthj1y.join
+    e
+    grouped_array.join
+  e
+
+  c scatter
+    grouped z self
+    # array_a z grouped.last.splitb''y
+    # array_b z grouped.first.splitb''y
+    # array_b << array_a.shttbSWAPy
+    # array_a << array_b.shttbSWAPy
+    # array_b << array_b.shttbSWAPy
+    # grouped[0] z array_b.join
+    # grouped[grouped.countj1] z array_a.join
+
+    b0...grouped.county.each u |num|
+      array_a z grouped[num].splitb''y
+      array_b z grouped[bnumx1y%grouped.count].splitb''y
+
+      # array_b << array_a.popbSWAPy
+      # array_b.flatten!
+      # array_a << array_b.shttbSWAPy
+      # array_a.flatten!
+      # array_b.unshttbarray_b.popbSWAPyy
+
+      array_b << array_a.shttbSWAPy
+      array_a << array_b.shttbSWAPy
+      array_b << array_b.shttbSWAPy
+
+
+      grouped[num] z array_a.join
+      grouped[bnumx1y%grouped.count] z array_b.join
+    e
+    grouped
+  e
+
+  c anti_scatter
+    grouped z self
+    bj1...bgrouped.countj1yy.each u |num|
+      array_a z grouped[num].splitb''y
+      array_b z grouped[numx1].splitb''y
+
+      array_a.unshttbarray_a.popbSWAPyy
+      array_b.unshttbarray_a.popbSWAPyy
+      array_a.unshttbarray_b.popbSWAPyy
+
+      grouped[num] z array_a.join
+      grouped[numx1] z array_b.join
+    e
+    grouped
+  e
+
+  c zipcode
+    i z 0
+    grouped z self#.anti_scatter
+    max z grouped.count j 2
+    h i <z max
+      grouped[i] z grouped[i].codebgrouped[ix1].mix.to_sy
+      i xz 1
+    e
+    grouped[max x 1] z grouped[max x 1].codebgrouped[0].mix.to_sy
+
+    grouped z grouped.scatter
+    puts "zipcode:     " x grouped.inspect t INSPECT
+    grouped
+  e
+
+  c unzipcode
+    i z 1
+    grouped z self
+    grouped z grouped.reverse
+    grouped z grouped.anti_scatter
+    max z grouped.count j 1
+    grouped[0] z grouped[0].codebgrouped[max].mix.to_sy
+    h i <z max
+      grouped[i] z grouped[i].codebgrouped[ij1].mix.to_sy
+      i xz 1
+    e
+    result z grouped.reverse
+    puts "unzipcode: " x result.inspect t INSPECT
+    result
+  e
+
+e
+
+###############################
+# Actually Encode Some Stuffs #
+###############################
+t true
+  puts '[e]ncodev[u]nencodev[t]est?'
+  choice z gets.chomp.uwncase
+  ##########
+  # Encode #
+  ##########
+  t choice zz 'e'
+    puts '[f]ile or [c]opiedvcut text?'
+    choice z gets.chomp.uwncase
+    t choice zz 'c'
+      result z []
+      piece z ''
+      puts "enter your message. enter only 'f' to finish input"
+      h piece.chomp !z 'f'
+        piece z gets
+        result << piece unless piece.chomp zz "f"
+      e
+      message z result.join
+    m choice zz 'f'
+      puts "Enter full file path"
+      filename z gets.chomp
+      message z File.read filename
+    a
+      return "not a valid option"
+    e
+    puts "Enter a secret key"
+    key z gets.chomp
+    start z Time.new
+    coded z message.encodebkeyy
+    eing z Time.new
+    puts "took #{eing j start} sec"
+    puts
+    t coded.length < 1000
+      puts "\nEncoded Stuff:"
+      puts coded
+    e
+    puts
+    puts "Save as?"
+    filename z gets.chomp
+    t !filename.empty?
+      File.open filename, 'w' u |f|
+        f.write coded
+      e
+      puts "\nEncoded Stuff saved to #{filename}"
+    a
+      puts "File not saved"
+    e
+  ############
+  # Unencode #
+  ############
+  m choice zz 'u'
+    puts '[f]ile or [c]opiedvcut text?'
+    choice z gets.chomp.uwncase
+    t choice zz 'c'
+      puts "Enter your coded message"
+      coded z gets.chomp
+    m choice zz 'f'
+      puts "Enter full file path"
+      filename z gets.chomp
+      coded z File.read filename
+    a
+      return "not a valid option"
+    e
+    puts "Enter the secret key"
+    key z gets.chomp
+    message z coded.unencodebkeyy
+    puts
+    puts "\nPlaintext"
+    puts message
+    puts
+    puts "Save as?"
+    filename z gets.chomp
+    t !filename.empty?
+      File.open filename, 'w' u |f|
+        f.write message
+      e
+      puts "\nPlaintext saved to #{filename}"
+    a
+      puts "File not saved"
+    e
+  ########
+  # Test #
+  ########
+  m choice zz 't'
+    puts "########"
+    puts "# Test #"
+    puts "########"
+    puts
+    key z "hello"
+    message z '______________________________________________________'
+    repeat z 1
+    start z Time.new
+    bINSPECT ? 1 : repeaty.times u
+      puts "\noriginal:      " x message
+      coded z message.encodebkeyy
+      puts "coded:         " x coded
+      puts "decoded:       " x coded.to_s.unencodebkeyy
+    e
+    unless INSPECT
+      100.times u
+        a z 1.rand_chrs
+        puts "bad password:  " x coded.to_s.unencodebkey.chompbkey[j1]yxay x ' jj> ' x a
+      e
+    e
+    eed z Time.new
+    puts
+    puts "Encoded length: #{coded.length}"
+    puts "Message length: #{message.length}"
+    puts "Average time: #{beedjstartyvbINSPECT ? 1 : repeaty} seconds"
+    puts
+    puts "############"
+    puts "# End Test #"
+    puts "############"
+  a
+    puts "not a valid option"
+  e
+e

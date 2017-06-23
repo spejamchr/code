@@ -1,0 +1,62 @@
+1-digit prime:         7
+Average calculation time: 0.00029380000000000004 seconds
+
+2-digit prime:         29
+Average calculation time: 2.6199999999999996e-05 seconds
+
+3-digit prime:         719
+Average calculation time: 2.9e-05 seconds
+
+4-digit prime:         3407
+Average calculation time: 4.96e-05 seconds
+
+5-digit prime:         35569
+Average calculation time: 0.00011800000000000001 seconds
+
+6-digit prime:         113947
+Average calculation time: 0.00038430000000000007 seconds
+
+7-digit prime:         1256531
+Average calculation time: 0.0007668 seconds
+
+8-digit prime:         17167819
+Average calculation time: 0.0016608999999999999 seconds
+
+9-digit prime:         979591631
+Average calculation time: 0.0087096 seconds
+
+10-digit prime:         8580961243
+Average calculation time: 0.0283395 seconds
+
+11-digit prime:         80701569271
+Average calculation time: 0.0657066 seconds
+
+12-digit prime:         206380436387
+Average calculation time: 0.1735996 seconds
+
+13-digit prime:         5055062442473
+Average calculation time: 0.6672572 seconds
+
+14-digit prime:         31614227373601
+Average calculation time: 1.6136611000000003 seconds
+
+15-digit prime:         275934444547147
+Average calculation time: 5.935560300000001 seconds
+
+16-digit prime:         1454704001261957
+Average calculation time: 14.673843999999999 seconds
+
+17-digit prime:         69054798250143763
+Average calculation time: 60.73337590000001 seconds
+
+18-digit prime:         538826159692943959
+Calculation time: 174.772536 seconds
+
+19-digit prime:         1970348588795924417
+Calculation time: 335.470604 seconds
+
+20-digit prime:         90096692307931923073
+Calculation time: 2882.271477 seconds
+
+21-digit prime:         439134085439250639293
+Calculation time: 11970.919778 seconds

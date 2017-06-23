@@ -1,0 +1,1 @@
+class Coin; def initialize(fake = false); @sides = %w(head tails); @side = @sides.sample; @fake = fake; @year = (1900..2015).to_a.sample; end; ; def show; @side; end; ; def flip; @side = @sides.sample unless @fake; end; ; def year; @year; end; ;end;;coin = Coin.new;puts coin.show;coin.flip;puts coin.show;coin.flip;puts coin.show

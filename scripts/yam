@@ -1,0 +1,303 @@
+#!/usr/bin/env ruby
+#
+# yam - Youth and Adult Merger for ScoutTrack files
+#
+# Usage:
+#
+#     yam path/to/youth.csv path/to/adult.csv [path/to/result.csv]
+#
+# In the absence of a path to the result, the result will by default be placed
+# in the same directory as the youths file, with the name 'both.csv'
+
+require 'csv'
+require 'pathname'
+
+class YouthAdultMerger
+
+  attr_reader :errors
+
+  REQUIRED = %i(last_name first_name youth_or_adult household).freeze
+
+  OPTIONAL = %i(email born_on gender nick_name middle_name suffix home_phone
+  cell_phone line1 line2 city state zip_code patrol).freeze
+
+  YOUTH_HEADERS = %i(first_name m.i. nickname last_name suffix den parents
+  birthday).freeze
+
+  ADULT_HEADERS = %i(first_name m.i. nickname last_name suffix birthday
+  address_line_1 address_line_2 city state zip home_phone cell_phone
+  email).freeze
+
+  def initialize(y_path, a_path, results_path)
+    @y_parsed = CSV.parse(File.read(y_path))
+    @a_parsed = CSV.parse(File.read(a_path))
+    @results_path = results_path
+    @errors = []
+
+    @y_headers = format_headers(@y_parsed[0])
+    @a_headers = format_headers(@a_parsed[0])
+
+    @y_indices = parse_header_indices(@y_headers, YOUTH_HEADERS, den: %i(unit/squad))
+    @a_indices = parse_header_indices(@a_headers, ADULT_HEADERS)
+
+    @y_indices.each do |k, v|
+      @errors << "Youth header #{k.inspect} not found" if v.nil?
+    end
+
+    @a_indices.each do |k, v|
+      @errors << "Adult header #{k.inspect} not found" if v.nil?
+    end
+  end
+
+  def merge!
+    if @errors.count > 0
+      print "Merge not performed because of "
+      report_errors
+      puts "Fix errors before proceeding"
+      return
+    end
+
+    y_rows = @y_parsed[1..-1].map { |r| YouthRow.new(r, @y_indices) }
+    a_rows = @a_parsed[1..-1].map { |r| AdultRow.new(r, @a_indices) }
+    users = link(y_rows, a_rows)
+    headers = REQUIRED + OPTIONAL
+
+    CSV.open(@results_path, 'wb') do |f|
+      f << headers
+      users.each do |u|
+        f << headers.map { |h| u.params[h] }
+      end
+    end
+
+    report_errors
+  end
+
+  private
+
+  def report_errors
+    return if @errors.count == 0
+    puts @errors.count.to_s + (@errors.count == 1 ? ' Error:' : ' Errors:')
+    puts @errors.map { |e| '  * ' + e }
+  end
+
+  def format_headers(headers)
+    headers.reject { |h| h.nil? || h.empty? }.map do |c|
+      c.strip.downcase.gsub(/\s+/, '_').to_sym
+    end
+  end
+
+  def parse_header_indices(headers, standard, aliases = {})
+    standard.each_with_object({}) do |h, indices|
+      indices[h.to_sym] = headers.index(h)
+      aliases[h.to_sym] && aliases[h.to_sym].each do |a|
+        break if indices[h.to_sym]
+        indices[h.to_sym] = headers.index(a)
+      end
+    end
+  end
+
+  def link(youth_rows, adult_rows)
+    (youth_rows + adult_rows).each_with_index do |r, i|
+      warn_if_row_has_malformed_params(r, i)
+    end
+
+    households = youth_rows.group_by(&:parents)
+
+    households.each do |k, v|
+      parent_rows = adult_rows.select do |ar|
+        k.map { |parent| parent[:last_name] }.include?(ar.last_name) &&
+        k.map { |parent| parent[:first_name] }.include?(ar.first_name)
+      end
+      parent_rows.each do |r|
+        adult_rows.delete(r)
+        v << r
+      end
+    end
+
+    household_names = []
+
+    households = households.values + adult_rows.map { |r| [r] }
+
+    households.each do |h|
+      name = get_unique_household_name(h, household_names)
+      h.each { |r| r.params[:household] = name }
+    end
+
+    users = households.flatten(1)
+
+    users.sort do |a, b|
+      [a.household, a.line1.nil?.to_s] <=> [b.household, b.line1.nil?.to_s]
+    end
+  end
+
+  def get_unique_household_name(household, taken_names)
+    h = household.map(&:last_name)
+    possibilities = h.sort_by {|i| h.grep(i).length }
+    poss = possibilities.dup
+
+    poss.pop while taken_names.include?(poss[-1])
+
+    if poss[-1]
+      taken_names << poss[-1]
+      return poss[-1]
+    end
+
+    n = 0
+    loop do
+      n += 1
+      poss = possibilities.dup
+      poss.pop while taken_names.include?(poss[-1] + n.to_s)
+      if poss[-1]
+        taken_names << (poss[-1] + n.to_s)
+        return poss[-1] + n.to_s
+      end
+    end
+  end
+
+  def warn_if_row_has_malformed_params(row, index)
+    return false if row.malformed_string.empty?
+    @errors <<
+      "Line #{index + 2} of #{row.class} has malformed: #{row.malformed_string}"
+  end
+
+  class Row < Array
+    attr_reader :malformed
+
+    def initialize(array, indices)
+      # Ignore leading & trailing whitespace on entries with #strip
+      super array.map { |e| e.to_s.strip }
+
+      @indices = indices
+      @malformed = []
+
+      params # Initialize params
+    end
+
+    def malformed_string
+      @malformed.map { |m| "#{m} ('#{at(m)}')" }.join(', ')
+    end
+
+    def method_missing(method)
+      params[method.to_sym]
+    end
+
+    # Implement this on the subclass
+    def params
+      return NotImplementedError.new("#{self.class}#params not implemented")
+    end
+
+    private
+
+    def at(header)
+      index = @indices[header]
+      return '' if index.nil?
+      self[index] || ''
+    end
+
+    def parse_birthday_at(symbol)
+      if at(symbol) && !at(symbol).empty?
+        Date.strptime(at(symbol),"%m/%d/%Y").strftime("%d/%m/%Y")
+      end
+    rescue ArgumentError
+      @malformed |= [symbol]
+      nil
+    end
+  end
+
+  class YouthRow < Row
+    def params
+      @params ||= {
+        parents: parse_parents,
+        youth_or_adult: 'youth',
+        first_name: at(:first_name),
+        middle_name: at(:'m.i.'),
+        last_name: at(:last_name),
+        suffix: at(:suffix),
+        nick_name: at(:nickname),
+        born_on: parse_birthday_at(:birthday),
+        patrol: at(:den)
+      }.reject { |k, v| v.nil? || v.empty? }
+    end
+
+    def parse_parents
+      return [{ last_name: at(:last_name) }] if at(:parents).to_s.empty?
+      at(:parents).split(',').map { |u| parse_parent(u) }
+    end
+
+    def parse_parent(parent_string)
+      parent_string.strip!
+      p_array = parent_string.split(' ')
+      case p_array.count
+      when 1
+        raise "Crap! Someone only has one name!
+          See: #{parent_string} at #{at(:first_name)} #{at(:last_name)}"
+      when 2
+        {
+          first_name: p_array[0],
+          last_name: p_array[1]
+        }
+      when 3
+        if p_array[0] =~ /^Mr.?$/
+          {
+            first_name: p_array[1],
+            last_name: p_array[2]
+          }
+        else
+          {
+            first_name: p_array[0],
+            middle_name: p_array[1],
+            last_name: p_array[2]
+          }
+        end
+      when 4
+        {
+          first_name: p_array[1],
+          middle_name: p_array[2],
+          last_name: p_array[3]
+        }
+      end
+    end
+  end
+
+  class AdultRow < Row
+    def params
+      @params ||= {
+        youth_or_adult: 'adult',
+        first_name: at(:first_name),
+        middle_name: at(:'m.i.'),
+        last_name: at(:last_name),
+        suffix: at(:suffix),
+        nick_name: at(:nickname),
+        born_on: parse_birthday_at(:birthday),
+        home_phone: at(:home_phone),
+        cell_phone: at(:cell_phone),
+        email: at(:email),
+        line1: at(:address_line_1),
+        line2: at(:address_line_2),
+        city: at(:city),
+        state: at(:state),
+        zip_code: at(:zip)
+      }.reject { |k, v| v.nil? || v.empty? }
+    end
+  end
+end
+
+y_path = ARGV[0]
+a_path = ARGV[1]
+results_path = ARGV[2] || Pathname.new(y_path.to_s).dirname.join('both.csv')
+
+if y_path.nil? || a_path.nil?
+  puts <<-DOC
+    yam - Youth and Adult Merger for ScoutTrack files
+
+    Usage:
+
+        yam path/to/youth.csv path/to/adult.csv [path/to/result.csv]
+
+    In the absence of a path to the result, the result will by default be placed
+    in the same directory as the youths file, with the name 'both.csv'
+
+  DOC
+else
+  YouthAdultMerger.new(y_path, a_path, results_path).merge!
+end

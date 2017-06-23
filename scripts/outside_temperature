@@ -1,0 +1,27 @@
+#!/usr/bin/env ruby
+require 'net/http'
+require 'uri'
+require 'nokogiri'
+
+uri = URI.parse("http://www.wrh.noaa.gov/mesowest/getobextXml.php?sid=KSGU")
+response = Net::HTTP.get_response(uri)
+
+response = Net::HTTP.get_response(uri) until response.code == '200'
+
+doc = Nokogiri::XML(response.body)
+
+# time_xpath = '/station/ob[1]/@time'
+description_xpath = '/station/ob[1]/variable[1]/@description'
+temp_value_xpath = '/station/ob[1]/variable[1]/@value'
+temp_units_xpath = '/station/ob[1]/variable[1]/@unit'
+
+# time = doc.at_xpath(time_xpath).to_s
+description = doc.at_xpath(description_xpath).to_s.to_sym
+temp_value = doc.at_xpath(temp_value_xpath).to_s.to_i
+temp_units = doc.at_xpath(temp_units_xpath).to_s.to_sym
+
+raise "Description changed to: \"#{description}\"!" unless description == :Temp
+raise "Unit changed to: \"#{temp_units}\"!" unless temp_units == :F
+
+puts temp_value
+# puts "#{temp_value} #{temp_units} at #{time}"
