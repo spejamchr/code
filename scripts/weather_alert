@@ -1,24 +1,36 @@
 #!/usr/bin/env bash
+$BASEDIR/notify "Weather Alert" "Started weather_alert"
 
-# Get path to the directory of this file
-BASEDIR=$(dirname "$BASH_SOURCE")
+while true; do
+  # Get path to the directory of this file
+  BASEDIR=$(dirname "$BASH_SOURCE")
 
-source /usr/local/share/chruby/chruby.sh
-chruby 2.3.1
+  source /usr/local/share/chruby/chruby.sh
+  chruby 2.3.1
 
-HOUSE_TEMP=71
-OUTSIDE_TEMP=$($BASEDIR/outside_temperature)
+  HOUSE_TEMP=71
+  OUTSIDE_TEMP=$($BASEDIR/outside_temperature)
+  changed=false
 
-if [ -s $BASEDIR/windows_closed ]; then
-  # The windows are closed
-  if [ $OUTSIDE_TEMP -lt $HOUSE_TEMP ]; then
-    $BASEDIR/text_me "It's colder outside, open the windows!"
-    rm $BASEDIR/windows_closed
+  if [ -s $BASEDIR/windows_closed ]; then
+    # The windows are closed
+    if [ $OUTSIDE_TEMP -lt $HOUSE_TEMP ]; then
+      $BASEDIR/notify "Weather Alert" "It is colder outside, open the windows"
+      rm $BASEDIR/windows_closed
+      changed=true
+    fi
+  else
+    # The windows are open
+    if [ $OUTSIDE_TEMP -gt $HOUSE_TEMP ]; then
+      $BASEDIR/notify "Weather Alert" "It is hotter outside, close the windows"
+      echo "The windows were closed $(date)" > $BASEDIR/windows_closed
+      changed=true
+    fi
   fi
-else
-  # The windows are open
-  if [ $OUTSIDE_TEMP -gt $HOUSE_TEMP ]; then
-    $BASEDIR/text_me "It's hotter outside, close the windows!"
-    echo "The windows were closed $(date)" > $BASEDIR/windows_closed
+
+  if [ "$changed" = true ]; then
+    sleep 3600 # An hour
+  else
+    sleep 600 # Ten minutes
   fi
-fi
+done
