@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
+
+# Get path to the directory of this file
+BASEDIR=$(dirname "$BASH_SOURCE")
+
 $BASEDIR/notify "Weather Alert" "Started weather_alert"
 
 while true; do
-  # Get path to the directory of this file
-  BASEDIR=$(dirname "$BASH_SOURCE")
-
-  source /usr/local/share/chruby/chruby.sh
-  chruby 2.3.1
-
   HOUSE_TEMP=71
   OUTSIDE_TEMP=$($BASEDIR/outside_temperature)
   changed=false
