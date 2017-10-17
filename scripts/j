@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+#
+# j - Journal helper
+#
+# Usage:
+#
+#     j Here is a journal entry for the day...
+#
+# The journal entry is appended to the day's journal file, which is created if
+# it is absent. In the absence of a journal entry, the day's journal file will
+# be created if necessary and opened for free editing.
+#
+BASEDIR="/Users/spencer/Documents/Journal"
+DATE="$(date '+%Y_%m_%d')"
+ENTRY_FILE="$BASEDIR/$DATE.md"
+
+# If the entry file doesn't exist, create it and enter today's date
+if [ ! -s $ENTRY_FILE ]; then
+  date "+# %d %B %Y, %A" >> $ENTRY_FILE
+fi
+
+if [[ $# -eq 0 ]]; then
+  # If given no arguments, open vim at the end of the file in insert mode
+  vim "+normal G$" +startinsert $ENTRY_FILE
+elif [[ "$1" == "-m" || "$1" == "--manual" ]]; then
+  # Manual: Create a new entry, and fill it in with vim manually
+  echo "" >> $ENTRY_FILE
+  date "+### %r" >> $ENTRY_FILE
+  vim "+normal G$" +startinsert $ENTRY_FILE
+elif [[ "$1" == "-a" || "$1" == "--append" ]]; then
+  # Append: Create a new entry using the second argument as the enty
+  if [[ "$2" == "" ]]; then
+    echo "Missing entry argument"
+    echo "Usage: `j --append [entry]` or `j -a [entry]` or `j [entry]`"
+    exit 1
+  else
+    echo "" >> $ENTRY_FILE
+    date "+### %r" >> $ENTRY_FILE
+    echo "$2" >> $ENTRY_FILE
+  fi
+elif [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  # Help: Show the help dialog
+  echo "j - Journal helper"
+  echo ""
+  echo "Usage:"
+  echo "  `j`"
+  echo "    Open the file at the very end in insert mode"
+  echo "  `j --manual` or `j -m`"
+  echo "    Create a new entry, and fill it in with vim manually"
+  echo "  `j --append [entry]` or `j -a [entry]` or `j [entry]`"
+  echo "    Create a new entry using [entry] as the enty (Default mode)"
+  echo "  `j --help` or `j -h`"
+  echo "    Show this dialog"
+else
+  # If the first arg doesn't match any options, assume it's an entry
+  echo "" >> $ENTRY_FILE
+  date "+### %r" >> $ENTRY_FILE
+  echo "$1" >> $ENTRY_FILE
+fi
