@@ -26,6 +26,12 @@ while true; do
     fi
   fi
 
+  if [ -s $BASEDIR/end_weather_alert ]; then
+    rm $BASEDIR/end_weather_alert
+    $BASEDIR/notify "Weather Alert" "Goodbye"
+    exit 0
+  fi
+
   if [ "$changed" = true ]; then
     sleep 3600 # An hour
   else

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# Get path to the directory of this file
+BASEDIR=$(dirname "$BASH_SOURCE")
+echo "stop_wa command sent $(date)" >> $BASEDIR/end_weather_alert
