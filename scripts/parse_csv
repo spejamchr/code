@@ -1,0 +1,210 @@
+#!/usr/bin/env ruby
+#
+# parse_csv - Parse Merit Badge, Rank, and Other Award data
+#
+# Usage:
+#
+#     parse_csv path/to/records.csv [path/to/results/directory]
+#
+# In the absence of a path to the results directory, the results will be placed
+# in the same directory as the records file
+
+class ParseThing
+
+  require 'csv'
+  require 'pathname'
+
+  HEADERS = [
+    'Patrol',
+    'Scout',
+    'Badge',
+    'Type',
+    'Earned',
+    'Recorded',
+    'Ordered',
+    'Distributed',
+  ].map { |s| s.freeze }.freeze
+
+  def initialize(path, results_dir)
+    @results_dir = results_dir
+
+    plaintext = File.read(path)
+    csv = CSV.parse(plaintext)
+
+    @headers = csv[0]
+    @indices = @headers.each_with_object({}) { |e, o| o[e] = @headers.index(e) }
+    @body = csv[1..-1]
+  end
+
+  def i(header)
+    @indices[header]
+  end
+
+  def date(r, header)
+    string = r[i(header)].to_s
+    return if string.empty?
+
+    DateTime.strptime(string, '%m/%d/%Y').strftime('%Y-%m-%d')
+  end
+
+  def merit_badges
+    all = @body.select { |r| r[i('Type')] =~ /Merit Badge/ }
+    all.map! do |r|
+      mb = r[i('Badge')].strip
+      case mb
+      when 'Camping'
+        mb = 'Camping (new)'
+      when 'Carpentry (100th Anniversary Commemorative)'
+        mb = 'Carpentry'
+      when 'Climbing'
+        mb = 'Climbing (2017)'
+      when 'Pathfinding (100th Anniversary Commemorative)'
+        mb = 'Pathfinding'
+      when 'Nuclear Science'
+        mb = 'Nuclear Science (2011+)'
+      when 'Hiking'
+        mb = 'Hiking (2017)'
+      end
+      r[i('Badge')] = mb
+      r
+    end
+    all.map do |r|
+      names = r[i('Scout')].strip.split(' ')
+      first_name, last_name = names.first, names.last
+      [
+        last_name,
+        first_name,
+        r[i('Badge')],
+        date(r, 'Earned'),
+        date(r, 'Distributed'),
+        !r[i('Recorded')].nil?,
+        !r[i('Ordered')].nil?,
+      ]
+    end
+  end
+
+  def ranks
+    all = @body.select { |r| r[i('Type')] =~ /Rank/ }
+    all.map! do |r|
+      rank_info = r[i('Badge')].strip
+      r[i('Badge')] = rank_info
+      r
+    end
+    all.map do |r|
+      names = r[i('Scout')].strip.split(' ')
+      first_name, last_name = names.first, names.last
+      [
+        last_name,
+        first_name,
+        r[i('Badge')],
+        date(r, 'Earned'),
+        date(r, 'Distributed'),
+        !r[i('Recorded')].nil?,
+        !r[i('Ordered')].nil?,
+      ]
+    end
+  end
+
+  def other_awards
+    all = @body.select { |r| r[i('Type')].to_s.strip.empty? }
+    all.map! do |r|
+      award = r[i('Badge')].strip
+      award = {
+        'Snorkeling, BSA' => 'Snorkeling BSA',
+        'Cyber Chip' => 'Cyber Chip Grades 9-12'
+      }[award] || award
+      r[i('Badge')] = award
+      r
+    end
+    all.map do |r|
+      names = r[i('Scout')].strip.split(' ')
+      first_name, last_name = names.first, names.last
+      [
+        last_name,
+        first_name,
+        'youth',
+        r[i('Badge')],
+        date(r, 'Earned'),
+        date(r, 'Distributed'),
+        !r[i('Recorded')].nil?,
+        !r[i('Ordered')].nil?,
+      ]
+    end
+  end
+
+  def rank_headers
+    %i(
+      last_name
+      first_name
+      rank_advancement
+      completed_on
+      awarded_on
+      recognized
+      purchased
+    )
+  end
+
+  def mb_headers
+    %i(
+      last_name
+      first_name
+      mb_advancement
+      completed_on
+      awarded_on
+      recognized
+      purchased
+    )
+  end
+
+  def other_headers
+    %i(
+      last_name
+      first_name
+      youth_or_adult
+      achievement
+      completed_on
+      awarded_on
+      recognized
+      purchased
+    )
+  end
+
+  def write
+    CSV.open("#{@results_dir}/MeritBadges.csv", 'wb') do |csv|
+      csv << mb_headers
+      merit_badges.each { |mb| csv << mb }
+    end
+
+    CSV.open("#{@results_dir}/Ranks.csv", 'wb') do |csv|
+      csv << rank_headers
+      ranks.each { |r| csv << r }
+    end
+
+    CSV.open("#{@results_dir}/OtherAwards.csv", 'wb') do |csv|
+      csv << other_headers
+      other_awards.each { |oa| csv << oa }
+    end
+  end
+
+end
+
+#ParseThing.new.write
+
+records_path = ARGV[0]
+results_dir = ARGV[1] || Pathname.new(records_path.to_s).dirname
+
+if records_path.nil?
+  puts <<-DOC
+    parse_csv - Parse Merit Badge, Rank, and Other Award data
+
+    Usage:
+
+        parse_csv path/to/records.csv [path/to/results/directory]
+
+    In the absence of a path to the results directory, the results will be placed
+    in the same directory as the records file
+
+  DOC
+else
+  ParseThing.new(records_path, results_dir).write
+end

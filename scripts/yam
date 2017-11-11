@@ -19,14 +19,15 @@ class YouthAdultMerger
   REQUIRED = %i(last_name first_name youth_or_adult household).freeze
 
   OPTIONAL = %i(email born_on gender nick_name middle_name suffix home_phone
-  cell_phone line1 line2 city state zip_code patrol).freeze
+  cell_phone work_phone line1 line2 city state zip_code patrol level id_number
+  joined_on).freeze
 
   YOUTH_HEADERS = %i(first_name m.i. nickname last_name suffix den parents
-  birthday).freeze
+  birthday bsa_#).freeze
 
   ADULT_HEADERS = %i(first_name m.i. nickname last_name suffix birthday
-  address_line_1 address_line_2 city state zip home_phone cell_phone
-  email).freeze
+  address_line_1 address_line_2 city state zip home_phone cell_phone work_phone
+  email roles bsa_id).freeze
 
   def initialize(y_path, a_path, results_path)
     @y_parsed = CSV.parse(File.read(y_path))
@@ -37,7 +38,7 @@ class YouthAdultMerger
     @y_headers = format_headers(@y_parsed[0])
     @a_headers = format_headers(@a_parsed[0])
 
-    @y_indices = parse_header_indices(@y_headers, YOUTH_HEADERS, den: %i(unit/squad))
+    @y_indices = parse_header_indices(@y_headers, YOUTH_HEADERS, den: %i(unit/squad patrol))
     @a_indices = parse_header_indices(@a_headers, ADULT_HEADERS)
 
     @y_indices.each do |k, v|
@@ -96,10 +97,49 @@ class YouthAdultMerger
     end
   end
 
+  def create_youth_row_from_adult(adult)
+    fail "I called create_youth_row_from_adult! :("
+  end
+
+  def transfer_youth(youth_rows, adult_rows)
+    not_adults = []
+
+    adult_rows.each do |a|
+      p [a.first_name, a.last_name]
+      puts
+
+      is_scout =
+        a.roles.strip.downcase == 'scout' ||
+        a.id_number && youth_rows.any? { |y| y.id_number == a.id_number }
+      next unless is_scout
+
+      match = youth_rows.find do |y|
+        if a.id_number
+          a.id_number == y.id_number
+        else
+          a.roles.strip.downcase == 'scout' &&
+          a.first_name == y.first_name &&
+          a.last_name == y.last_name
+        end
+      end
+
+      youth_rows << create_youth_row_from_adult(a) if match.nil?
+      match.merge_params(a.params) unless match.nil?
+
+      not_adults << a
+    end
+
+    not_adults.each { |na| adult_rows.delete(na) }
+
+    [youth_rows, adult_rows]
+  end
+
   def link(youth_rows, adult_rows)
     (youth_rows + adult_rows).each_with_index do |r, i|
       warn_if_row_has_malformed_params(r, i)
     end
+
+    youth_rows, adult_rows = transfer_youth(youth_rows, adult_rows)
 
     households = youth_rows.group_by(&:parents)
 
@@ -146,7 +186,7 @@ class YouthAdultMerger
     loop do
       n += 1
       poss = possibilities.dup
-      poss.pop while taken_names.include?(poss[-1] + n.to_s)
+      poss.pop while !poss[-1].nil? && taken_names.include?(poss[-1] + n.to_s)
       if poss[-1]
         taken_names << (poss[-1] + n.to_s)
         return poss[-1] + n.to_s
@@ -215,8 +255,13 @@ class YouthAdultMerger
         suffix: at(:suffix),
         nick_name: at(:nickname),
         born_on: parse_birthday_at(:birthday),
-        patrol: at(:den)
+        patrol: at(:den),
+        id_number: at(:'bsa_#'),
       }.reject { |k, v| v.nil? || v.empty? }
+    end
+
+    def merge_params(others)
+      @params.merge(others)
     end
 
     def parse_parents
@@ -271,13 +316,19 @@ class YouthAdultMerger
         born_on: parse_birthday_at(:birthday),
         home_phone: at(:home_phone),
         cell_phone: at(:cell_phone),
+        work_phone: at(:work_phone),
         email: at(:email),
         line1: at(:address_line_1),
         line2: at(:address_line_2),
         city: at(:city),
         state: at(:state),
-        zip_code: at(:zip)
+        zip_code: at(:zip),
+        id_number: at(:bsa_id),
       }.reject { |k, v| v.nil? || v.empty? }
+    end
+
+    def roles
+      at(:roles)
     end
   end
 end
