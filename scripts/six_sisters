@@ -1,0 +1,420 @@
+#!/usr/bin/env python
+"""
+six_sisters - Parse and store Six Sisters recipe PDFs
+
+Just call `six_sisters` in the terminal and the most recent Six Sisters recipe
+PDF in "~/Dropbox/Spencer & Kelsie/Recipes/Six Sisters" will be parsed and
+stored, unless it's already been parsed and stored.
+
+Recipes are stored in a csv database with columns:
+
+Title           (String)
+Type            (String)    Main Dish, Side Dish, Dessert
+Servings        (Integer)
+Prep            (Integer)   Prep time (minutes)
+Cook            (Integer)   Cook time (minutes)
+Time            (Integer)   Prep time + Cook time (minutes)
+Ingredients     (String)    A list of all the ingredients
+Directions      (String)    The preparation directions
+Eaten           (Boolean)   Whether or not we've eaten it
+Score           (Integer)   What we thought, from 0-10
+PDF             (String)    The path to the source PDF for the recipe
+
+"""
+import os
+import re
+import sys
+import csv
+import random
+import shutil
+import datetime
+import operator
+from tempfile import NamedTemporaryFile
+
+
+def print_help():
+    print("""
+    six_sisters - Parse and store Six Sisters recipe PDFs
+
+    Just call `six_sisters` in the terminal and any Six Sisters recipe PDF in
+    "~/Dropbox/Spencer & Kelsie/Recipes/Six Sisters" will be parsed and stored,
+    except those that have already been parsed and stored.
+
+    Synopsis:
+
+        six_sisters [-p path]
+        six_sisters [-q query] [-r [number] | -l]
+        six_sisters [-e recipe [-s score]] | [-n recipe]
+
+    Arguments:
+
+        -p path         specify the full Path to the PDF to Parse
+
+        -q query        limit operations to recipes matching the Query
+        -r [number]     get the path to a Random Recipe/number of Recipes
+        -l              List recipe titles
+
+        -e recipe       record a recipe as Eaten
+        -s score        record a Score for a recipe (must be used with -e)
+        -n recipe       record a recipe as New/Non-eaten (the default)
+
+        -h              show this Help message
+
+    Query:
+
+        A query takes the form of <column_name><comparison><value>.
+
+        <column_name> a case-insensitive string taken from the csv headers
+        <comparison> either >, =, or <
+        <value> an appropriate value for the column
+
+        For example, to only include eaten recipes, use "eaten=true". To include
+        recipes with a score of 7 or higher use "score>6". To only see recipes
+        with time-to-finish less than or equal to an hour use "time<61".
+
+    Examples:
+
+        six_sisters # Parse and store most recent recipes
+        six_sisters -l # List titles of all stored recipes
+        six_sisters -r 3 -q eaten=false # Get paths to 3 random new recipes
+    """)
+
+
+SIX_SISTERS_DB = os.path.join(os.path.dirname(__file__), "six_sisters.csv")
+DEFAULT_DIRECTORY = "~/Dropbox/Spencer & Kelsie/Recipes/Six Sisters/"
+FILE_MATCHER = re.compile(r"^Healthy.+\.pdf$")
+HEADER_TYPES = (
+    ('Title', 'String'),
+    ('Type', 'String'),
+    ('Servings', 'Integer'),
+    ('Prep', 'Integer'),
+    ('Cook', 'Integer'),
+    ('Time', 'Integer'),
+    ('Ingredients', 'String'),
+    ('Directions', 'String'),
+    ('Eaten', 'Boolean'),
+    ('Score', 'Integer'),
+    ('PDF', 'String'),
+)
+HEADERS = [ht[0] for ht in HEADER_TYPES]
+
+
+def getopts(argv):
+    """Parse command-line arguments"""
+    opts = {}
+    while argv:
+        # Allow multiple queries
+        if argv[0] == "-q":
+            if len(argv) > 1:
+                if not argv[0] in opts:
+                    opts[argv[0]] = []
+                opts[argv[0]].append(argv[1])
+
+        # Handle all other arguments
+        elif argv[0][0] == "-":
+            if len(argv) > 1:
+                opts[argv[0]] = argv[1]
+            else:
+                opts[argv[0]] = None
+        argv = argv[1:]
+
+    return opts
+
+
+def base_formatter(match):
+    """Format PDF text with no unusual whitespace, nor double repetitions"""
+    string = ' '.join(match.text().replace('\u200b', '').split())
+
+    # Some strings come out of the PDF doubled, like "Hi there Hi there"
+    m = int(len(string)/2)
+    if string[0:m] == string[m+1:]:
+        string = string[0:m]
+
+    return string
+
+
+def serves_formatter(match):
+    """Format the 'Serves' entry as an integer"""
+    return int(re.findall(r'\d+', base_formatter(match))[0])
+
+
+def prep_cook_formatter(match):
+    """Format the Prep and Cook Time entries as time in minutes"""
+    capture = re.findall(r'\d+.+', base_formatter(match))
+    if not capture:
+        return 0
+
+    text = capture[0]
+    num, unit = text.split()[0:2]
+    num = int(num)
+    if unit == 'hrs':
+        num *= 60
+    return num
+
+
+def info_for(pdf, pages, recipe_type, pdf_path):
+    """Parse a PDF recipe page"""
+    infos = []
+    for page in pages:
+        print("\r  Parsing page " + str(page), end='')
+        pdf.load(page)
+        info = pdf.extract([
+            ('with_formatter', lambda match: base_formatter(match)),
+            ('Title', ':in_bbox("0, 450, 446, 487")'),
+            ('with_formatter', lambda match: serves_formatter(match)),
+            ('Servings', ':in_bbox("0, 430, 446, 460")'),
+            ('with_formatter', lambda match: prep_cook_formatter(match)),
+            ('Prep', ':in_bbox("0, 405, 200, 445")'),
+            ('Cook', ':in_bbox("160, 405, 420, 445")'),
+            ('with_formatter', lambda match: base_formatter(match)),
+            ('Ingredients', ':in_bbox("0, 120, 302, 385")'),
+            ('Directions', ':in_bbox("290, 120, 790, 385")'),
+        ])
+        info['Type'] = recipe_type
+        info['PDF'] = pdf_path
+        info['Time'] = info['Prep'] + info['Cook']
+        info['Eaten'] = False
+        info['Score'] = -1
+        infos.append(info)
+
+    return infos
+
+
+def __init_db__():
+    """Initialize the database if it does not exist"""
+    if not os.path.isfile(SIX_SISTERS_DB):
+        with open(SIX_SISTERS_DB, 'w') as db:
+            csv.writer(db, dialect='unix').writerow(HEADERS)
+
+
+def __store_in_db__(pages):
+    """Store new pages in csv database"""
+    if not os.path.isfile(SIX_SISTERS_DB):
+        __init_db__()
+
+    existing = []
+    with open(SIX_SISTERS_DB, 'r') as db:
+        reader = csv.DictReader(db, dialect='unix')
+        for row in reader:
+            existing.append(row['Title'])
+
+    duplicates = [f for f in pages if f['Title'] in existing]
+    if len(duplicates) > 0:
+        print("Duplicate recipes found:")
+        for d in duplicates:
+            print("  " + d['Title'])
+
+    pages = [f for f in pages if not f['Title'] in existing]
+
+    with open(SIX_SISTERS_DB, 'a') as db:
+        writer = csv.DictWriter(db, fieldnames=HEADERS, dialect='unix')
+        writer.writerows(pages)
+
+
+def __read_db__():
+    if not os.path.isfile(SIX_SISTERS_DB):
+        __init_db__()
+
+    with open(SIX_SISTERS_DB, 'r') as db:
+        reader = csv.DictReader(db, dialect='unix')
+        db = [r for r in reader]
+
+    for row in db:
+        for header, htype in HEADER_TYPES:
+            if htype == "Integer":
+                row[header] = int(row[header])
+            elif htype == "Boolean":
+                row[header] = row[header] == "True"
+
+    return db
+
+
+def __db_column__(column, db=None):
+    if db is None:
+        db = __read_db__()
+
+    return [row[column] for row in db]
+
+
+class NotAColumn(Exception):
+    pass
+
+
+def handle_q(queries):
+    db = __read_db__()
+
+    ops = {
+        '<': operator.lt,
+        '=': operator.eq,
+        '>': operator.gt,
+    }
+
+    for query in queries:
+        comparison = '>' if '>' in query else ('<' if '<' in query else '=')
+        column, value = query.split(comparison)
+        if column not in HEADERS:
+            raise NotAColumn("Column is not valid: " + column)
+
+        header_type = [ht[1] for ht in HEADER_TYPES if ht[0] == column][0]
+        if header_type == "Integer":
+            value = int(value)
+        elif header_type == "Boolean":
+            value = value == "True"
+
+        op = ops[comparison]
+        db = [row for row in db if op(row[column], value)]
+
+    return db
+
+
+def handle_r(n_string, db=None):
+    n_string = n_string or 1
+    try:
+        n = int(n_string)
+    except ValueError:
+        n = 1
+
+    print(random.sample(__db_column__('Title', db=db), n))
+
+
+def handle_l(db=None):
+    print(__db_column__('Title', db=db))
+
+
+def handle_e(title):
+    if not title:
+        print("Option -e requires an argument")
+        sys.exit()
+
+    with open(SIX_SISTERS_DB + ".tmp", 'w') as temp_file:
+        with open(SIX_SISTERS_DB, 'r') as csv_file:
+            reader = csv.DictReader(csv_file, dialect='unix')
+            writer = csv.DictWriter(temp_file, fieldnames=HEADERS,
+                                    dialect='unix')
+
+            csv.writer(temp_file, dialect='unix').writerow(HEADERS)
+
+            for row in reader:
+                if row['Title'] == title:
+                    row['Eaten'] = True
+                writer.writerow(row)
+
+    shutil.move(temp_file.name, SIX_SISTERS_DB)
+
+
+def handle_s(title, score):
+    if not title:
+        print("Option -s requires an argument")
+        sys.exit()
+
+    try:
+        score = int(score)
+    except ValueError:
+        print("Option -s requires an integer argument")
+        sys.exit()
+
+    with open(SIX_SISTERS_DB + ".tmp", 'w') as temp_file:
+        with open(SIX_SISTERS_DB, 'r') as csv_file:
+            reader = csv.DictReader(csv_file, dialect='unix')
+            writer = csv.DictWriter(temp_file, fieldnames=HEADERS,
+                                    dialect='unix')
+
+            csv.writer(temp_file, dialect='unix').writerow(HEADERS)
+
+            for row in reader:
+                if row['Title'] == title:
+                    row['Score'] = score
+                writer.writerow(row)
+
+    shutil.move(temp_file.name, SIX_SISTERS_DB)
+
+
+def handle_n(title):
+    if not title:
+        print("Option -n requires an argument")
+        sys.exit()
+
+    with open(SIX_SISTERS_DB + ".tmp", 'w') as temp_file:
+        with open(SIX_SISTERS_DB, 'r') as csv_file:
+            reader = csv.DictReader(csv_file, dialect='unix')
+            writer = csv.DictWriter(temp_file, fieldnames=HEADERS,
+                                    dialect='unix')
+
+            csv.writer(temp_file, dialect='unix').writerow(HEADERS)
+
+            for row in reader:
+                if row['Title'] == title:
+                    row['Eaten'] = False
+                writer.writerow(row)
+
+    shutil.move(temp_file.name, SIX_SISTERS_DB)
+
+
+def parse_file(path):
+    parsed_paths = __db_column__('PDF')
+    if path in parsed_paths:
+        print("Path has already been parsed: " + path)
+        return
+
+    pdf = pdfquery.PDFQuery(path)
+    pages = []
+    print("- Parse 9 pages: " + path)
+    pages.extend(info_for(pdf, range(1, 7), 'Main Dish', path))
+    pages.extend(info_for(pdf, range(7, 9), 'Side Dish', path))
+    pages.extend(info_for(pdf, range(9, 10), 'Dessert', path))
+    print('')
+    print('- Store results')
+    __store_in_db__(pages)
+
+
+if __name__ == "__main__":
+    args = getopts(sys.argv)
+
+    if "-h" in args:
+        print_help()
+        sys.exit()
+
+    if len(args) == 0 and len(sys.argv) == 1 or "-p" in args:
+        # Only do this import if we need to, since it's a bit slow
+        import pdfquery
+
+        if len(args) == 0:
+            directory = os.path.expanduser(DEFAULT_DIRECTORY)
+            filenames = os.listdir(directory)
+            filenames = [f for f in filenames if FILE_MATCHER.match(f)]
+            for filename in filenames:
+                path = directory + filename
+                parse_file(path)
+
+        else:
+            path = os.path.expanduser(args["-p"])
+            parse_file(path)
+
+    elif "-q" in args:
+        db = handle_q(args["-q"])
+        if "-r" in args:
+            handle_r(args["-r"], db=db)
+        elif "-l" in args:
+            handle_l(db=db)
+
+    elif "-r" in args:
+        handle_r(args["-r"])
+
+    elif "-l" in args:
+        handle_l()
+
+    elif "-e" in args:
+        handle_e(args['-e'])
+        if "-s" in args:
+            handle_s(args['-e'], args['-s'])
+
+    elif "-s" in args:
+        print("-s option must be used with -e option")
+        sys.quit()
+
+    elif "-n" in args:
+        handle_n(args['-n'])
+
+    else:
+        print('\n    Unsupported arguments! See usage below:')
+        print_help()
