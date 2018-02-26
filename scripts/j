@@ -4,7 +4,7 @@
 #
 # Usage:
 #
-#     j Here is a journal entry for the day...
+#     j "Here is a journal entry for the day..."
 #
 # The journal entry is appended to the day's journal file, which is created if
 # it is absent. In the absence of a journal entry, the day's journal file will
@@ -48,7 +48,7 @@ elif [[ "$1" == "-h" || "$1" == "--help" ]]; then
   echo "  \`j --manual' or \`j -m'"
   echo "    Create a new entry, and fill it in with vim manually"
   echo "  \`j --append [entry]' or \`j -a [entry]' or \`j [entry]'"
-  echo "    Create a new entry using [entry] as the entry (Default mode)"
+  echo "    Create a new entry using [entry] as the entry"
   echo "  \`j --help' or \`j -h'"
   echo "    Show this dialog"
 else
