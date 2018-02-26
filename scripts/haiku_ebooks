@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+# This script is meant to be called by the crontab once a minute.
+
+# Only tweet 1/60 times this is run (if this is run once a minute, it will tweet
+# on average once an hour).
+number=$RANDOM
+let "number %= 60"
+LOG="/Users/spencer/mylogs/haiku.txt"
+
+if [ $number = 0 ]; then
+  printf "\nRunning haiku_ebooks bash script at $(date)\n"
+
+  chruby 2.4.2
+
+  printf "$(ruby --version)\n"
+  printf "$(ruby /Users/spencer/git/haiku_ebooks/bin/haiku_ebooks)\n\n"
+else
+  printf "Not running haiku_ebooks bash script at $(date), number=$number\n"
+fi
