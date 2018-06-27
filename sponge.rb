@@ -1,7 +1,7 @@
+require "Prime"
 # A hashing algorithm
 #
 class Sponge < Array
-  require 'Prime'
 
   COLUMNS = 25
 
@@ -19,7 +19,7 @@ class Sponge < Array
     flatten.map { |s| format("%0#{word_bits / 4}x", s) }.first
   end
 
-  private
+  #private
 
   attr_reader :power, :word_bits, :max_word_value
 
@@ -35,11 +35,11 @@ class Sponge < Array
     bits = number.to_s(2)
     extra_length = word_bits - bits.length % word_bits
     return number if extra_length == word_bits
-    (bits + '0' * (extra_length - 1) + '1').to_i(2)
+    (bits + "0" * (extra_length - 1) + "1").to_i(2)
   end
 
   def absorb_piece(number)
-    fail 'Too many bits' if number > max_word_value
+    fail "Too many bits" if number > max_word_value
     self[0] ^= number
   end
 
@@ -127,8 +127,8 @@ end
 # Parent class for other Hash classes
 #
 class Spash
-  class << self
-    attr_reader :power
+  def self.power
+    @power
   end
 
   def hash(string)
@@ -140,7 +140,7 @@ end
 #
 # Usage:
 #
-#   $ S128.new.hash('a string')
+#   $ S128.new.hash("a string")
 #   >> <a 128-bit hash, in a hex string>
 #
 class S128 < Spash; @power = 7; end
@@ -149,7 +149,7 @@ class S128 < Spash; @power = 7; end
 #
 # Usage:
 #
-#   $ S256.new.hash('a string')
+#   $ S256.new.hash("a string")
 #   >> <a 256-bit hash, in a hex string>
 #
 class S256 < Spash; @power = 8; end
@@ -158,18 +158,18 @@ class S256 < Spash; @power = 8; end
 #
 # Usage:
 #
-#   $ S512.new.hash('a string')
+#   $ S512.new.hash("a string")
 #   >> <a 512-bit hash, in a hex string>
 #
 class S512 < Spash; @power = 9; end
 
-string = 'Spencer James Christiansen may have come here before. But
-maybe not. Who knows? He knows. That\'s who. How may I communicate myself to
-thee, sweet Ophelia? Who is Ophelia, anyway? I\'ve heard the name, but I
+string = "Spencer James Christiansen may have come here before. But
+maybe not. Who knows? He knows. That\"s who. How may I communicate myself to
+thee, sweet Ophelia? Who is Ophelia, anyway? I\"ve heard the name, but I
 cannot remember if she is from Greek legend, or if she is from Shakespeare.
 Quite possibly she is in both. I dunno. Oh well. What should I write next?
-"Orson Scott Card is a master storyteller ... Enchanted is the ultimate proof"
--- Anne McCaffrey'
+'Orson Scott Card is a master storyteller ... Enchanted is the ultimate proof'
+-- Anne McCaffrey"
 
 puts Sponge.new.hash(string)
 puts S128.new.hash(string)

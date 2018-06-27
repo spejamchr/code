@@ -10,6 +10,7 @@ class Trie < Hash
 
   def <<(word)
     hash = self
+    word = word.downcase
     word.split('').each_with_index do |l, i|
       if hash[l].nil?
         hash[l] = {}

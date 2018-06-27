@@ -2,10 +2,11 @@
 
 # This script is meant to be called by the crontab once a minute.
 
-# Only tweet 1/60 times this is run (if this is run once a minute, it will tweet
-# on average once an hour).
+# Only tweet 1/192 times this is run (if this is run once a minute, it will
+# tweet about once every three hours). Don't tweet on a schedule, because then
+# missed tweets (like when my laptop is closed) are more noticeable.
 number=$RANDOM
-let "number %= 60"
+let "number %= 264"
 LOG="/Users/spencer/mylogs/haiku.txt"
 
 if [ $number = 0 ]; then

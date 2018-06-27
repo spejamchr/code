@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
+#!/usr/bin/env ruby
 #
-# j - Journal helper
+# j - Journal Helper (in Ruby!)
 #
 # Usage:
 #
@@ -10,50 +10,108 @@
 # it is absent. In the absence of a journal entry, the day's journal file will
 # be created if necessary and opened for free editing.
 #
-BASEDIR="/Users/spencer/Documents/Journal"
-DATE="$(date '+%Y_%m_%d')"
-ENTRY_FILE="$BASEDIR/$DATE.md"
+require 'time'
 
-# If the entry file doesn't exist, create it and enter today's date
-if [ ! -s $ENTRY_FILE ]; then
-  date "+# %d %B %Y, %A" >> $ENTRY_FILE
-fi
+DROPBOX_DIR = File.join(Dir.home, 'Dropbox', 'Journal').freeze
 
-if [[ $# -eq 0 ]]; then
-  # If given no arguments, open vim at the end of the file
-  vim "+normal G$" $ENTRY_FILE
-elif [[ "$1" == "-m" || "$1" == "--manual" ]]; then
-  # Manual: Create a new entry, and fill it in with vim manually
-  echo "" >> $ENTRY_FILE
-  date "+### %r%n%n" >> $ENTRY_FILE
-  vim "+normal G$" $ENTRY_FILE
-elif [[ "$1" == "-a" || "$1" == "--append" ]]; then
-  # Append: Create a new entry using the second argument as the enty
-  if [[ "$2" == "" ]]; then
-    echo "Missing entry argument"
-    echo "Usage: \`j --append [entry]' or \`j -a [entry]' or \`j [entry]'"
-    exit 1
+JOURNAL_DIR = File.join(Dir.home, 'Documents', 'Journal').freeze
+DATE = Time.now.strftime('%Y_%m_%d').freeze
+ENTRY_FILE = File.join(JOURNAL_DIR, "#{DATE}.md")
+
+# If the dropbox dir doesn't exist, create it
+Dir.mkdir(DROPBOX_DIR) unless File.directory?(DROPBOX_DIR)
+
+# If the journal dir doesn't exist create it
+Dir.mkdir(JOURNAL_DIR) unless File.directory?(JOURNAL_DIR)
+
+# If the entry file doesn't exist, create it
+unless File.file?(ENTRY_FILE)
+  File.write(ENTRY_FILE, Time.now.strftime('# %d %B %Y, %A%n'))
+end
+
+if ARGV.count == 0
+  # If given no arguments, open nvim at the end of the file
+  system(%(nvim "+normal G$" #{ENTRY_FILE}))
+elsif %w(-m --manual).include? ARGV.first
+  # Manual: Create a new entry, and fill it in with nvim manually
+  File.open(ENTRY_FILE, 'a') do |f|
+    f.puts ''
+    f.puts Time.now.strftime('### %r%n%n%n')
+  end
+  system(%(nvim "+normal G$" #{ENTRY_FILE}))
+elsif %w(-a --append).include? ARGV.first
+  # Append: Create a new entry using the second argument as the entry
+  if ARGV[1].nil?
+    raise ArgumentError, <<-MSG
+      Missing entry argument
+      Usage: `j --append entry' or `j -a entry' or `j entry'
+    MSG
   else
-    echo "" >> $ENTRY_FILE
-    date "+### %r%n" >> $ENTRY_FILE
-    echo "$2" >> $ENTRY_FILE
-  fi
-elif [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    File.open(ENTRY_FILE, 'a') do |f|
+      f.puts ''
+      f.puts Time.now.strftime('### %r%n%n')
+      f.puts ARGV[1]
+    end
+  end
+elsif %w(-h --help).include? ARGV.first
   # Help: Show the help dialog
-  echo "j - Journal helper"
-  echo ""
-  echo "Usage:"
-  echo "  \`j'"
-  echo "    Open the file at the very end"
-  echo "  \`j --manual' or \`j -m'"
-  echo "    Create a new entry, and fill it in with vim manually"
-  echo "  \`j --append [entry]' or \`j -a [entry]' or \`j [entry]'"
-  echo "    Create a new entry using [entry] as the entry"
-  echo "  \`j --help' or \`j -h'"
-  echo "    Show this dialog"
+  puts <<-MSG
+    j - Journal Helper
+
+    Usage:
+      `j'
+        Open the file at the very end
+      `j --manual' or `j -m'
+        Create a new entry, and fill it in with nvim manually
+      `j --append <entry>' or `j -a <entry>' or `j <entry>'
+        Create a new entry using <entry> as the entry
+      `j --help' or `j -h'
+        Show this dialog
+  MSG
+elsif '--dropbox' == ARGV.first
+  Dir[File.join(DROPBOX_DIR, '*.txt')].each do |path|
+    entry = File.read(path)
+    timestamp = File.mtime(path)
+
+    date = timestamp.strftime('%Y_%m_%d').freeze
+    journal_entry = File.join(JOURNAL_DIR, "#{date}.md")
+
+    entry_text = "#{timestamp.strftime('%r')}\n\n#{entry}\n"
+
+    if File.file? journal_entry
+      current_text = File.read(journal_entry)
+      entries = current_text.split("\n### ")
+      new_text = current_text
+      if entries.count == 1
+        new_text = "#{current_text}\n### #{entry_text}"
+      else
+        times = entries[1..-1].map { |e| Time.parse(e.split("\n\n").first) }
+        my_time = Time.parse(timestamp.strftime('%r'))
+        if !times.include?(my_time)
+          index = times.count { |t| my_time > t }
+          new_entries = entries[0..index] + [entry_text] + entries[index+1..-1]
+          new_text = new_entries.join("\n### ")
+        end
+      end
+      File.write(journal_entry, new_text)
+    else
+      # Probably won't happen as often, since this means the entry wasn't
+      # written today and this script hasn't been run since then.
+      File.open(journal_entry, 'w') do |f|
+        f.puts timestamp.strftime('# %d %B %Y, %A')
+        f.puts ''
+        f.puts timestamp.strftime('### %r%n%n')
+        f.puts entry
+      end
+    end
+
+    File.delete(path)
+  end
 else
   # If the first arg doesn't match any options, assume it's an entry
-  echo "" >> $ENTRY_FILE
-  date "+### %r%n" >> $ENTRY_FILE
-  echo "$1" >> $ENTRY_FILE
-fi
+  File.open(ENTRY_FILE, 'a') do |f|
+    f.puts ''
+    f.puts Time.now.strftime('### %r%n%n')
+    f.puts ARGV.first
+  end
+end
