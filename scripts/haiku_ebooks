@@ -7,7 +7,6 @@
 # missed tweets (like when my laptop is closed) are more noticeable.
 number=$RANDOM
 let "number %= 264"
-LOG="/Users/spencer/mylogs/haiku.txt"
 
 if [ $number = 0 ]; then
   printf "\nRunning haiku_ebooks bash script at $(date)\n"
@@ -15,7 +14,7 @@ if [ $number = 0 ]; then
   chruby 2.4.2
 
   printf "$(ruby --version)\n"
-  printf "$(ruby /Users/spencer/git/haiku_ebooks/bin/haiku_ebooks)\n\n"
+  printf "$(ruby /Users/spencer/git/fun/haiku_ebooks/bin/haiku_ebooks)\n\n"
 else
   printf "Not running haiku_ebooks bash script at $(date), number=$number\n"
 fi

@@ -3,7 +3,7 @@ require 'net/http'
 require 'uri'
 require 'nokogiri'
 
-uri = URI.parse("http://www.wrh.noaa.gov/mesowest/getobextXml.php?sid=KSGU")
+uri = URI.parse("https://www.wrh.noaa.gov/mesowest/getobextXml.php?sid=KSGU")
 response = Net::HTTP.get_response(uri)
 
 response = Net::HTTP.get_response(uri) until response.code == '200'
