@@ -1,2 +1,6 @@
 .DS_Store
 scripts/windows_closed
+scripts/ngrok
+
+rusties/**/target/
+**/*.rs.bk
