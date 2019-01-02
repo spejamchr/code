@@ -14,7 +14,12 @@ require 'time'
 
 DROPBOX_DIR = File.join(Dir.home, 'Dropbox', 'Journal').freeze
 
-JOURNAL_DIR = File.join(Dir.home, 'Documents', 'Journal').freeze
+if ARGV.count == 1 && %w(-s --scripture).include?(ARGV.first)
+  JOURNAL_DIR = File.join(Dir.home, 'Documents', 'Church', 'StudyNotes').freeze
+else
+  JOURNAL_DIR = File.join(Dir.home, 'Documents', 'Journal').freeze
+end
+
 DATE = Time.now.strftime('%Y_%m_%d').freeze
 ENTRY_FILE = File.join(JOURNAL_DIR, "#{DATE}.md")
 
@@ -32,7 +37,7 @@ end
 if ARGV.count == 0
   # If given no arguments, open nvim at the end of the file
   system(%(nvim "+normal G$" #{ENTRY_FILE}))
-elsif %w(-m --manual).include? ARGV.first
+elsif %w(-m --manual -s --scripture).include? ARGV.first
   # Manual: Create a new entry, and fill it in with nvim manually
   File.open(ENTRY_FILE, 'a') do |f|
     f.puts ''
