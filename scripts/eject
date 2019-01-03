@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+# Eject all external drives
+
+notify "Ejecting Drives" "Please wait"
+ejected=""
+
+for d in /Volumes/*
+do
+  if diskutil info $d | grep "\bDevice Location:\\s\\+External" > /dev/null
+  then
+    ejected="$d, $ejected"
+    diskutil eject $d
+  fi
+done
+
+notify "Drives Ejected" $ejected
