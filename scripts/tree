@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+
+def tree(dir, depth)
+  return unless File.directory?(dir)
+
+  puts "#{' ' * depth}#{File.basename(dir)}"
+  depth += 1
+
+  Dir.children(dir).sort.each do |item|
+    if File.directory?(File.join(dir, item))
+      tree File.join(dir, item), depth
+    else
+      puts "#{' ' * depth}#{item}"
+    end
+  end
+end
+
+dir = ARGV[0] || '.'
+depth = ARGV[1] || 0
+
+tree dir, depth
