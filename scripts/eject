@@ -8,11 +8,11 @@ ejected=""
 
 for d in /Volumes/*
 do
-  if diskutil info $d | grep "\bDevice Location:\\s\\+External" > /dev/null
+  if diskutil info "$d" | grep "\bDevice Location:\\s\\+External" > /dev/null
   then
     ejected="$d, $ejected"
-    diskutil eject $d
+    diskutil eject "$d"
   fi
 done
 
-$BASEDIR/notify "Drives Ejected" $ejected
+$BASEDIR/notify "Drives Ejected" "$ejected"
