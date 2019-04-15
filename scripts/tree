@@ -1,21 +1,27 @@
 #!/usr/bin/env ruby
 
-def tree(dir, depth)
+def indent(uncles)
+  uncles.map { |u| u ? '| ' : '  ' }.join + '|-'
+end
+
+def tree(dir, uncles)
   return unless File.directory?(dir)
 
-  puts "#{' ' * depth}#{File.basename(dir)}"
-  depth += 1
+  puts "#{indent(uncles[0...-1])}#{File.basename(dir)}/"
 
-  Dir.children(dir).sort.each do |item|
+  children = Dir.children(dir).sort
+
+  new_uncle = children.count > 1
+
+  children.each do |item|
     if File.directory?(File.join(dir, item))
-      tree File.join(dir, item), depth
+      tree File.join(dir, item), uncles + [new_uncle && item != children.last]
     else
-      puts "#{' ' * depth}#{item}"
+      puts "#{indent(uncles)}#{item}"
     end
   end
 end
 
 dir = ARGV[0] || '.'
-depth = ARGV[1] || 0
 
-tree dir, depth
+tree dir, [false]
