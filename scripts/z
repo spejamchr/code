@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+yes="done
+finished
+over
+stopped
+terminated
+complete
+concluded
+performed
+realized
+wrought
+brought to pass"
+
+no="failed
+aborted
+blundered
+fizzled
+flopped
+floundered
+slipped
+error
+flaw
+glitch
+miscalculation"
+
+time "$@"
+status=$?
+
+phrases=$([[ $status = 0 ]] && echo "$yes" || echo "$no")
+echo "$phrases" | sort -R | head -n 1 | say
+
+exit $status
