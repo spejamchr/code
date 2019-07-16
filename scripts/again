@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+
+while true
+  fg_color = "3#{rand(8)}"
+  bg_color = fg_color == "30" ? "47" : "40"
+  format = rand(8)
+  string = %w(black red green brown blue magenta cyan gray white pink purple orange yellow).sample
+
+  puts "\033[#{fg_color}m\033[#{bg_color}m\033[#{format}m#{string}\033[0m"
+  print "Color? > "
+  gets
+end
