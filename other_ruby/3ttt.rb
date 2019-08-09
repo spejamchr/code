@@ -48,7 +48,7 @@ module TTT
         end
 
         s += y.to_s.ljust(axis_label_width) + ' '
-        s += all_cols.map { |x| " #{get(x, y) ? 'X' : empty_sym} " }.join('|')
+        s += all_cols.map { |x| " #{get(x, y) ? 'X' : empty_sym} " }.join('│')
 
         s
       end
@@ -56,7 +56,7 @@ module TTT
       inter_rows = ''
       inter_rows += ' ' * y_label.length
       inter_rows += ' ' * axis_label_width
-      inter_rows += ' ' + all_cols.map { '---' }.join('+')
+      inter_rows += ' ' + all_cols.map { '───' }.join('┼')
 
       with_y_labels = row_strings.join("\n" + inter_rows + "\n")
 
@@ -137,7 +137,7 @@ module TTT
     end
 
     def to_s
-      t_cols = ENV['COLUMNS'].to_i
+      t_cols = (ENV['COLUMNS'] || 80).to_i
       board_joiner = '  '
       strings = @boards.each_with_index.map { |b, i| b.to_s(title: "Board #{i}") }
       per_row = t_cols / (strings.first.split("\n").first.length + board_joiner.length)
@@ -212,3 +212,5 @@ module TTT
 
   end
 end
+
+TTT::Game.new.repl
