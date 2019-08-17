@@ -226,7 +226,7 @@ def get_doc(uri, store, page)
   Dir.mkdir(cached_dir) unless Dir.exist?(cached_dir)
   Dir.mkdir(store_dir) unless Dir.exist?(store_dir)
 
-  path = "#{store_dir}/page_#{page}"
+  path = "#{store_dir}/page_#{page}.html"
 
   unless File.readable?(path)
     URI.parse(uri).open(URI_OPTIONS) do |f|
