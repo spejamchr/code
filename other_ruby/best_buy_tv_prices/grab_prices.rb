@@ -16,6 +16,7 @@ DEBUG = false
 HEADERS = %i[
   url
   page
+  title
   store
   brand
   tech
@@ -169,8 +170,8 @@ def text_at(doc, css_path)
     .or_effect { puts "Could not find text_at: #{css_path}" if DEBUG }
 end
 
-def safe_encode(s)
-  s.encode('UTF-8', invalid: :replace, undef: :replace, replace: '?')
+def safe_encode(string)
+  string.encode('UTF-8', invalid: :replace, undef: :replace, replace: '?')
 end
 
 def parse_title(item, css_path)
@@ -349,12 +350,11 @@ end
 
 def basic_attributes(title, store)
   Maybe
-    .just({})
+    .just(title: title, store: store)
     .assign(:size) { size_decoder(title) }
     .assign(:resolution) { resolution_decoder(title) }
     .assign(:tech) { tech_decoder(title) }
     .assign(:brand) { brand_decoder(title) }
-    .map { |attrs| attrs.merge(store: store) }
 end
 
 def best_buy_attributes(item)
