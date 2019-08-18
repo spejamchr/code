@@ -25,28 +25,38 @@ HEADERS = %i[
 ].freeze
 
 BRANDS = %w[
+  AXESS
   ELEMENT
   FURRION
+  GPX
   HISENSE
   HITACHI
   INSIGNIA
   JENSEN
+  JVC
   LG
   MAGNAVOX
+  NAXA
+  POLAROID
+  PROSCAN
+  PYLE
   RCA
   SAMSUNG
   SCEPTRE
+  SEIKI
   SHARP
   SHARP
   SKYWORTH
   SKYWORTH
   SONY
+  SPELER
   SUNBRITE
   SUNBRITETV
   SUPERSONIC
   SÉURA
   TCL
   TOSHIBA
+  VIEWSONIC
   VIZIO
   WESTINGHOUSE
 ].freeze
@@ -65,6 +75,9 @@ COSTCO_URI =
 
 AMAZON_URI =
   'https://www.amazon.com/Televisions-Television-Video/s?i=electronics&bbn=172659&rh=n%3A172659%2Cp_72%3A1248879011%2Cp_n_condition-type%3A2224371011&dc&qid=1566078437&rnid=2224369011&ref=sr_nr_p_n_condition-type_1'
+
+WALMART_URI =
+  'https://www.walmart.com/search/api/preso?facet=condition%3ANew%7C%7Cvideo_panel_design%3AFlat'
 
 # Represent a possibly present value
 class Maybe
@@ -135,6 +148,7 @@ end
 def parse_title(item, css_path)
   text_at(item, css_path)
     .get_or_else('')
+    .gsub(/\s+/, ' ')
 end
 
 def best_buy_title(item)
@@ -147,6 +161,10 @@ end
 
 def amazon_title(item)
   parse_title(item, 'img @alt')
+end
+
+def walmart_title(item)
+  item.dig('title') || ''
 end
 
 def best_buy_ref(item)
@@ -170,6 +188,15 @@ def amazon_url(item)
     .map { |ref| ref.match?(/^https:/) ? ref : "https://www.amazon.com#{ref}" }
 end
 
+def walmart_ref(item)
+  Maybe.new(item.dig('productPageUrl'))
+end
+
+def walmart_url(item)
+  walmart_ref(item)
+    .map { |ref| ref.match?(/^https:/) ? ref : "https://www.walmart.com#{ref}" }
+end
+
 def best_buy_price(item)
   parse_at(item, '.price-block .priceView-hero-price.priceView-customer-price')
     .map { |prices| prices.children[1]&.text&.match(/\$.+/)&.to_s }
@@ -182,6 +209,11 @@ end
 def amazon_price(item)
   text_at(item, '.a-offscreen')
     .or_effect { amazon_url(item).effect { |a| p a if DEBUG } }
+end
+
+def walmart_price(item)
+  Maybe.new(item.dig('primaryOffer', 'offerPrice'))
+    .or_effect { walmart_url(item).effect { |a| p a if DEBUG } }
 end
 
 def find_match(title, regex)
@@ -203,12 +235,14 @@ def size_decoder(title)
     .or_else { find_match(title, /\b[\d\.]+''/) }
     .or_else { find_match(title, /\b[\d\.]+.?inch\b/i) }
     .or_else { find_match(title, /\b[\d\.]+.?in\b/i) }
+    .or_else { find_match(title, /\b[\d\.]+.?Class/) }
     .map { |s| s.match(/[\d\.]+/).to_s }
     .or_effect { puts "Could not decode size: #{title}" if DEBUG }
 end
 
 def tech_decoder(title)
-  find_match(title, /\b[OQ]?LED\b/i)
+  find_match(title, /\b[OQUX]?LED\b/i)
+    .or_else { find_match(title, /\bquantum\b/i).map { 'QLED' } }
     .or_effect { puts "Could not decode tech: #{title}" if DEBUG }
     .get_or_else('LED')
     .upcase
@@ -247,6 +281,10 @@ def hd_matcher(title)
     .or_else { find_match(title, /\bfhd\b/i).map { '1080p' } }
 end
 
+def nxn_matcher(title)
+  find_match(title, /\d+.?x.?\d+/i).map { |s| "#{s.scan(/\d+/).last}p" }
+end
+
 def resolution_decoder(title)
   Maybe
     .nothing
@@ -254,6 +292,7 @@ def resolution_decoder(title)
     .or_else { nk_matcher(title) }
     .or_else { uhd_matcher(title) }
     .or_else { hd_matcher(title) }
+    .or_else { nxn_matcher(title) }
     .map(&:downcase)
     .or_effect { puts "Could not decode resolution: #{title}" if DEBUG }
 end
@@ -284,6 +323,12 @@ def amazon_attributes(item)
   basic_attributes(amazon_title(item), 'Amazon')
     .assign(:price) { amazon_price(item) }
     .assign(:url) { amazon_url(item) }
+end
+
+def walmart_attributes(item)
+  basic_attributes(walmart_title(item), 'Walmart')
+    .assign(:price) { walmart_price(item) }
+    .assign(:url) { walmart_url(item) }
 end
 
 def write_attrs(attrs, csv)
@@ -329,6 +374,21 @@ def get_doc(uri, store, page)
   end
 
   Nokogiri::HTML(File.read(path))
+end
+
+def get_json(uri, store, page)
+  cached_dir = 'cached_pages'
+  store_dir = File.join(cached_dir, store)
+  path = File.join(store_dir, "page_#{page}.json")
+
+  Dir.mkdir(cached_dir) unless Dir.exist?(cached_dir)
+  Dir.mkdir(store_dir) unless Dir.exist?(store_dir)
+
+  unless File.readable?(path)
+    URI.parse(uri).open(URI_OPTIONS) { |f| File.write(path, f.read) }
+  end
+
+  JSON.load(File.read(path))
 end
 
 def best_buy_results(uri)
@@ -391,8 +451,17 @@ def amazon_results(uri)
   end
 end
 
+def walmart_results(uri)
+  Parallel.map(1..13) do |page|
+    only_justs(
+      get_json("#{uri}&page=#{page}", 'Walmart', page)['items']
+      .map { |item| walmart_attributes(item) }
+    ).map { |attrs| attrs.merge(page: page) }
+  end.flatten
+end
+
 def just_number(string)
-  string.gsub(/[^\d\.]/, '').to_f
+  string.to_s.gsub(/[^\d\.]/, '').to_f
 end
 
 def sortable_array(hash)
@@ -413,6 +482,7 @@ results = []
 results += best_buy_results(BEST_BUY_URI)
 results += costco_results(COSTCO_URI)
 results += amazon_results(AMAZON_URI)
+results += walmart_results(WALMART_URI)
 
 results.sort_by! { |i| sortable_array(i) }
 
