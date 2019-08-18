@@ -25,7 +25,10 @@ HEADERS = %i[
 ].freeze
 
 BRANDS = %w[
+  ATYME
+  AVERA
   AXESS
+  CROWN
   ELEMENT
   FURRION
   GPX
@@ -34,18 +37,24 @@ BRANDS = %w[
   INSIGNIA
   JENSEN
   JVC
+  KC
   LG
   MAGNAVOX
   NAXA
+  PANASONIC
+  PHILIPS
+  PHILLIPS
   POLAROID
   PROSCAN
   PYLE
   RCA
   SAMSUNG
+  SANYO
   SCEPTRE
   SEIKI
   SHARP
   SHARP
+  SILO
   SKYWORTH
   SKYWORTH
   SONY
@@ -90,6 +99,9 @@ AMAZON_URI =
 WALMART_URI =
   'https://www.walmart.com/search/api/preso' \
   '?facet=condition%3ANew%7C%7Cvideo_panel_design%3AFlat'
+
+FRYS_URI =
+  'https://www.frys.com/category/Outpost/Video/Televisions'
 
 # Represent a possibly present value
 class Maybe
@@ -157,8 +169,13 @@ def text_at(doc, css_path)
     .or_effect { puts "Could not find text_at: #{css_path}" if DEBUG }
 end
 
+def safe_encode(s)
+  s.encode('UTF-8', invalid: :replace, undef: :replace, replace: '?')
+end
+
 def parse_title(item, css_path)
   text_at(item, css_path)
+    .map { |s| safe_encode(s) }
     .get_or_else('')
     .gsub(/\s+/, ' ')
 end
@@ -177,6 +194,10 @@ end
 
 def walmart_title(item)
   item.dig('title') || ''
+end
+
+def frys_title(item)
+  parse_title(item, '.productDescp a')
 end
 
 def best_buy_ref(item)
@@ -209,6 +230,15 @@ def walmart_url(item)
     .map { |ref| ref.match?(/^https:/) ? ref : "https://www.walmart.com#{ref}" }
 end
 
+def frys_ref(item)
+  text_at(item, '.productDescp a @href')
+end
+
+def frys_url(item)
+  frys_ref(item)
+    .map { |ref| ref.match?(/^https:/) ? ref : "https://www.frys.com#{ref}" }
+end
+
 def best_buy_price(item)
   parse_at(item, '.price-block .priceView-hero-price.priceView-customer-price')
     .map { |prices| prices.children[1]&.text&.match(/\$.+/)&.to_s }
@@ -227,6 +257,12 @@ def walmart_price(item)
   Maybe
     .new(item.dig('primaryOffer', 'offerPrice'))
     .or_effect { walmart_url(item).effect { |a| p a if DEBUG } }
+end
+
+def frys_price(item)
+  text_at(item, '.toGridPriceHeight ul li .red_txt')
+    .map { |t| t.gsub(/\s+/, '') }
+    .or_effect { frys_url(item).effect { |a| p a if DEBUG } }
 end
 
 def find_match(title, regex)
@@ -345,6 +381,12 @@ def walmart_attributes(item)
     .assign(:url) { walmart_url(item) }
 end
 
+def frys_attributes(item)
+  basic_attributes(frys_title(item), 'Frys')
+    .assign(:price) { frys_price(item) }
+    .assign(:url) { frys_url(item) }
+end
+
 def write_attrs(attrs, csv)
   csv << HEADERS.map { |key| attrs[key] }
 end
@@ -373,6 +415,10 @@ end
 
 def amazon_parse_list(list)
   only_justs(list.search('.s-result-item').map { |i| amazon_attributes(i) })
+end
+
+def frys_parse_list(list)
+  only_justs(list.search('.product').map { |i| frys_attributes(i) })
 end
 
 def get_doc(uri, store, page)
@@ -474,6 +520,19 @@ def walmart_results(uri)
   end.flatten
 end
 
+def frys_results(uri)
+  per = 20
+  Parallel.map(1..20) do |page|
+    start = per * (page - 1)
+    page_uri = "#{uri}?page=#{page}&start=#{start}&rows=#{per}"
+
+    get_doc(page_uri, 'Frys', page)
+      .search('#rightCol')
+      .map { |list| frys_parse_list(list) }
+      .map { |items| items.map { |attrs| attrs.merge(page: page) } }
+  end.flatten
+end
+
 def just_number(string)
   string.to_s.gsub(/[^\d\.]/, '').to_f
 end
@@ -497,6 +556,7 @@ results += best_buy_results(BEST_BUY_URI)
 results += costco_results(COSTCO_URI)
 results += amazon_results(AMAZON_URI)
 results += walmart_results(WALMART_URI)
+results += frys_results(FRYS_URI)
 
 results.sort_by! { |i| sortable_array(i) }
 
