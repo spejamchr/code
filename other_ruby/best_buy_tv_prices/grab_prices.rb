@@ -68,16 +68,28 @@ URI_OPTIONS = {
 }.freeze
 
 BEST_BUY_URI =
-  'https://www.bestbuy.com/site/tvs/all-flat-screen-tvs/abcat0101001.c?qp=condition_facet%3DCondition~New'
+  'https://www.bestbuy.com/site/tvs/all-flat-screen-tvs/abcat0101001.c' \
+  '?qp=condition_facet%3DCondition~New'
 
 COSTCO_URI =
-  'https://www.costco.com/televisions.html?display-type=led-lcd+oled&refine=ads_f110001_ntk_cs%253A%2522LED-LCD%2522|ads_f110001_ntk_cs%253A%2522OLED%2522|'
+  'https://www.costco.com/televisions.html' \
+  '?display-type=led-lcd+oled' \
+  '&refine=ads_f110001_ntk_cs%253A%2522LED-LCD%2522|' \
+  'ads_f110001_ntk_cs%253A%2522OLED%2522|'
 
 AMAZON_URI =
-  'https://www.amazon.com/Televisions-Television-Video/s?i=electronics&bbn=172659&rh=n%3A172659%2Cp_72%3A1248879011%2Cp_n_condition-type%3A2224371011&dc&qid=1566078437&rnid=2224369011&ref=sr_nr_p_n_condition-type_1'
+  'https://www.amazon.com/Televisions-Television-Video/s' \
+  '?i=electronics' \
+  '&bbn=172659' \
+  '&rh=n%3A172659%2Cp_72%3A1248879011%2Cp_n_condition-type%3A2224371011' \
+  '&dc' \
+  '&qid=1566078437' \
+  '&rnid=2224369011' \
+  '&ref=sr_nr_p_n_condition-type_1'
 
 WALMART_URI =
-  'https://www.walmart.com/search/api/preso?facet=condition%3ANew%7C%7Cvideo_panel_design%3AFlat'
+  'https://www.walmart.com/search/api/preso' \
+  '?facet=condition%3ANew%7C%7Cvideo_panel_design%3AFlat'
 
 # Represent a possibly present value
 class Maybe
@@ -212,7 +224,8 @@ def amazon_price(item)
 end
 
 def walmart_price(item)
-  Maybe.new(item.dig('primaryOffer', 'offerPrice'))
+  Maybe
+    .new(item.dig('primaryOffer', 'offerPrice'))
     .or_effect { walmart_url(item).effect { |a| p a if DEBUG } }
 end
 
@@ -229,14 +242,15 @@ def brand_decoder(title)
 end
 
 def size_decoder(title)
+  nums = /[\d\.]+/
+
   Maybe
     .nothing
-    .or_else { find_match(title, /\b[\d\.]+["”]/) }
-    .or_else { find_match(title, /\b[\d\.]+''/) }
-    .or_else { find_match(title, /\b[\d\.]+.?inch\b/i) }
-    .or_else { find_match(title, /\b[\d\.]+.?in\b/i) }
-    .or_else { find_match(title, /\b[\d\.]+.?Class/) }
-    .map { |s| s.match(/[\d\.]+/).to_s }
+    .or_else { find_match(title, /\b#{nums}["”']/) }
+    .or_else { find_match(title, /\b#{nums}.?inch\b/i) }
+    .or_else { find_match(title, /\b#{nums}.?in\b/i) }
+    .or_else { find_match(title, /\b#{nums}.?Class/) }
+    .map { |s| s.match(/#{nums}/).to_s }
     .or_effect { puts "Could not decode size: #{title}" if DEBUG }
 end
 
@@ -388,7 +402,7 @@ def get_json(uri, store, page)
     URI.parse(uri).open(URI_OPTIONS) { |f| File.write(path, f.read) }
   end
 
-  JSON.load(File.read(path))
+  JSON.parse(File.read(path))
 end
 
 def best_buy_results(uri)
