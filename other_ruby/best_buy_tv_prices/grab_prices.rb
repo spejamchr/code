@@ -391,11 +391,30 @@ def amazon_results(uri)
   end
 end
 
+def just_number(string)
+  string.gsub(/[^\d\.]/, '').to_f
+end
+
+def sortable_array(hash)
+  [
+    just_number(hash[:size]),
+    hash[:tech],
+    just_number(hash[:resolution]),
+    just_number(hash[:price]),
+    hash[:brand],
+    hash[:store],
+    hash[:page],
+    hash[:url]
+  ]
+end
+
 results = []
 
 results += best_buy_results(BEST_BUY_URI)
 results += costco_results(COSTCO_URI)
 results += amazon_results(AMAZON_URI)
+
+results.sort_by! { |i| sortable_array(i) }
 
 CSV.open('scraped_televisions.csv', 'wb') do |csv|
   csv << HEADERS
