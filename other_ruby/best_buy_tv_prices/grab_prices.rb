@@ -25,52 +25,6 @@ HEADERS = %i[
   price
 ].freeze
 
-BRANDS = %w[
-  ATYME
-  AVERA
-  AXESS
-  CROWN
-  ELEMENT
-  FURRION
-  GPX
-  HISENSE
-  HITACHI
-  INSIGNIA
-  JENSEN
-  JVC
-  KC
-  LG
-  MAGNAVOX
-  NAXA
-  PANASONIC
-  PHILIPS
-  PHILLIPS
-  POLAROID
-  PROSCAN
-  PYLE
-  RCA
-  SAMSUNG
-  SANYO
-  SCEPTRE
-  SEIKI
-  SHARP
-  SHARP
-  SILO
-  SKYWORTH
-  SKYWORTH
-  SONY
-  SPELER
-  SUNBRITE
-  SUNBRITETV
-  SUPERSONIC
-  SÉURA
-  TCL
-  TOSHIBA
-  VIEWSONIC
-  VIZIO
-  WESTINGHOUSE
-].freeze
-
 URI_OPTIONS = {
   'User-Agent' => "Ruby/#{RUBY_VERSION}",
   'From' => 'spensterc@yahoo.com',
@@ -106,6 +60,56 @@ FRYS_URI =
 
 NEWEGG_URI =
   'https://www.newegg.com/p/pl?N=100167585%204814'
+
+BEST_BUY_CONFIG = {
+  store: 'Best Buy',
+  base_url: 'https://www.bestbuy.com',
+  list_query: '.sku-item-list',
+  item_query: '.sku-item',
+  title_query: '.information .sku-title a',
+  price_query: '.price-block .priceView-hero-price.priceView-customer-price',
+  url_query: '.information .sku-title a @href'
+}.freeze
+
+COSTCO_CONFIG = {
+  store: 'Costco',
+  base_url: 'https://www.costco.com',
+  list_query: '.product-list',
+  item_query: '.product',
+  title_query: '.description a',
+  price_query: '.caption .price',
+  url_query: '.description a @href'
+}.freeze
+
+AMAZON_CONFIG = {
+  store: 'Amazon',
+  base_url: 'https://www.amazon.com',
+  list_query: '.s-result-list',
+  item_query: '.s-result-item',
+  title_query: 'img @alt',
+  price_query: '.a-offscreen',
+  url_query: 'a @href'
+}.freeze
+
+FRYS_CONFIG = {
+  store: 'Frys',
+  base_url: 'https://www.frys.com',
+  list_query: '#rightCol',
+  item_query: '.product',
+  title_query: '.productDescp a',
+  price_query: '.toGridPriceHeight ul li .red_txt',
+  url_query: '.productDescp a @href'
+}.freeze
+
+NEWEGG_CONFIG = {
+  store: 'Newegg',
+  base_url: 'https://www.newegg.com',
+  list_query: '.items-view.is-grid',
+  item_query: '.item-container',
+  title_query: '.item-info .item-title',
+  price_query: '.item-action .price-current',
+  url_query: '.item-info a.item-title @href'
+}.freeze
 
 # Represent a possibly present value
 class Maybe
@@ -163,252 +167,6 @@ class Maybe
   end
 end
 
-def parse_at(doc, css_path)
-  Maybe.new(doc.at(css_path))
-end
-
-def text_at(doc, css_path)
-  parse_at(doc, css_path)
-    .map(&:text)
-    .or_effect { puts "Could not find text_at: #{css_path}" if DEBUG }
-end
-
-def safe_encode(string)
-  string.encode('UTF-8', invalid: :replace, undef: :replace, replace: '?')
-end
-
-def parse_title(item, css_path)
-  text_at(item, css_path)
-    .map { |s| safe_encode(s) }
-    .get_or_else('')
-    .gsub(/\s+/, ' ')
-end
-
-def best_buy_title(item)
-  parse_title(item, '.information .sku-title a')
-end
-
-def costco_title(item)
-  parse_title(item, '.description a')
-end
-
-def amazon_title(item)
-  parse_title(item, 'img @alt')
-end
-
-def walmart_title(item)
-  item.dig('title') || ''
-end
-
-def frys_title(item)
-  parse_title(item, '.productDescp a')
-end
-
-def newegg_title(item)
-  parse_title(item, '.item-info .item-title')
-end
-
-def url_from_ref(base_url, maybe)
-  maybe.map { |ref| ref.match?(/^https:/) ? ref : "#{base_url}#{ref}" }
-end
-
-def best_buy_url(item)
-  css_path = '.information .sku-title a @href'
-  url_from_ref('https://www.bestbuy.com', text_at(item, css_path))
-end
-
-def costco_url(item)
-  css_path = '.description a @href'
-  url_from_ref('https://www.costco.com', text_at(item, css_path))
-end
-
-def amazon_url(item)
-  css_path = 'a @href'
-  url_from_ref('https://www.amazon.com', text_at(item, css_path))
-end
-
-def walmart_url(item)
-  url_from_ref('https://www.walmart.com', Maybe.new(item.dig('productPageUrl')))
-end
-
-def frys_url(item)
-  css_path = '.productDescp a @href'
-  url_from_ref('https://www.frys.com', text_at(item, css_path))
-end
-
-def newegg_url(item)
-  css_path = '.item-info a.item-title @href'
-  url_from_ref('https://www.newegg.com', text_at(item, css_path))
-end
-
-def fetch_price(item, css_path)
-  text_at(item, css_path).map { |s| s.match(/\$[\d\,]+(\.\d\d)?/)&.to_s }
-end
-
-def best_buy_price(item)
-  fetch_price(item, '.price-block .priceView-customer-price')
-    .or_effect { best_buy_url(item).effect { |a| p a if DEBUG } }
-end
-
-def costco_price(item)
-  fetch_price(item, '.caption .price')
-    .or_effect { costco_url(item).effect { |a| p a if DEBUG } }
-end
-
-def amazon_price(item)
-  fetch_price(item, '.a-offscreen')
-    .or_effect { amazon_url(item).effect { |a| p a if DEBUG } }
-end
-
-def walmart_price(item)
-  Maybe
-    .new(item.dig('primaryOffer', 'offerPrice'))
-    .or_effect { walmart_url(item).effect { |a| p a if DEBUG } }
-end
-
-def frys_price(item)
-  fetch_price(item, '.toGridPriceHeight ul li .red_txt')
-    .or_effect { frys_url(item).effect { |a| p a if DEBUG } }
-end
-
-def newegg_price(item)
-  fetch_price(item, '.item-action .price-current')
-    .or_effect { newegg_url(item).effect { |a| p a if DEBUG } }
-end
-
-def find_match(title, regex)
-  Maybe.new(title.match(regex)).map(&:to_s)
-end
-
-def brand_decoder(title)
-  title = title.gsub(/[^a-z ]/i, '').upcase # Remove TM symbols
-
-  Maybe
-    .new((title.split(' ') & BRANDS).first)
-    .or_effect { puts "Could not decode brand: #{title}" if DEBUG }
-end
-
-def size_decoder(title)
-  # Explude any TVs in the single-digit size. Too small, and too easily
-  # confused with other numbers (such as soundbar sizes).
-  nums = /\d{2,}(\.\d{0,2})?/
-
-  Maybe
-    .nothing
-    .or_else { find_match(title, /\b#{nums}["”']/) }
-    .or_else { find_match(title, /\b#{nums}.?inch\b/i) }
-    .or_else { find_match(title, /\b#{nums}.?in\b/i) }
-    .or_else { find_match(title, /\b#{nums}.?Class/) }
-    .map { |s| s.match(/#{nums}/).to_s }
-    .or_effect { puts "Could not decode size: #{title}" if DEBUG }
-end
-
-def tech_decoder(title)
-  find_match(title, /\b[OQUX]?LED\b/i)
-    .or_else { find_match(title, /\bquantum\b/i).map { 'QLED' } }
-    .or_effect { puts "Could not decode tech: #{title}" if DEBUG }
-    .get_or_else('LED')
-    .upcase
-end
-
-def k_to_p(nk_res)
-  {
-    '1k' => '1080p',
-    '4k' => '2160p',
-    '5k' => '2160p',
-    '8k' => '4320p'
-  }.fetch(nk_res.downcase)
-end
-
-def explicit_res_matcher(title)
-  find_match(title, /\b\d+p\b/i)
-end
-
-def nk_matcher(title)
-  find_match(title, /\b\dk\b/i)
-    .map { |nk| k_to_p(nk) }
-end
-
-def uhd_matcher(title)
-  Maybe
-    .nothing
-    .or_else { find_match(title, /\buhd\b/i).map { '2160p' } }
-    .or_else { find_match(title, /\bultra hd\b/i).map { '2160p' } }
-end
-
-def hd_matcher(title)
-  Maybe
-    .nothing
-    .or_else { find_match(title, /\bhd\b/i).map { '1080p' } }
-    .or_else { find_match(title, /\bhdtv\b/i).map { '1080p' } }
-    .or_else { find_match(title, /\bfhd\b/i).map { '1080p' } }
-end
-
-def nxn_matcher(title)
-  find_match(title, /\d+.?x.?\d+/i).map { |s| "#{s.scan(/\d+/).last}p" }
-end
-
-def resolution_decoder(title)
-  Maybe
-    .nothing
-    .or_else { explicit_res_matcher(title) }
-    .or_else { nk_matcher(title) }
-    .or_else { uhd_matcher(title) }
-    .or_else { hd_matcher(title) }
-    .or_else { nxn_matcher(title) }
-    .map(&:downcase)
-    .or_effect { puts "Could not decode resolution: #{title}" if DEBUG }
-end
-
-def basic_attributes(title, store)
-  Maybe
-    .just(title: title, store: store)
-    .assign(:size) { size_decoder(title) }
-    .assign(:resolution) { resolution_decoder(title) }
-    .assign(:tech) { tech_decoder(title) }
-    .assign(:brand) { brand_decoder(title) }
-end
-
-def best_buy_attributes(item)
-  basic_attributes(best_buy_title(item), 'Best Buy')
-    .assign(:price) { best_buy_price(item) }
-    .assign(:url) { best_buy_url(item) }
-end
-
-def costco_attributes(item)
-  basic_attributes(costco_title(item), 'Costco')
-    .assign(:price) { costco_price(item) }
-    .assign(:url) { costco_url(item) }
-end
-
-def amazon_attributes(item)
-  basic_attributes(amazon_title(item), 'Amazon')
-    .assign(:price) { amazon_price(item) }
-    .assign(:url) { amazon_url(item) }
-end
-
-def walmart_attributes(item)
-  basic_attributes(walmart_title(item), 'Walmart')
-    .assign(:price) { walmart_price(item) }
-    .assign(:url) { walmart_url(item) }
-end
-
-def frys_attributes(item)
-  basic_attributes(frys_title(item), 'Frys')
-    .assign(:price) { frys_price(item) }
-    .assign(:url) { frys_url(item) }
-end
-
-def newegg_attributes(item)
-  basic_attributes(newegg_title(item), 'Newegg')
-    .assign(:price) { newegg_price(item) }
-    .assign(:url) { newegg_url(item) }
-end
-
-def write_attrs(attrs, csv)
-  csv << HEADERS.map { |key| attrs[key] }
-end
-
 def map_maybe(maybes)
   return to_enum(:map_maybe, maybes) unless block_given?
 
@@ -423,24 +181,191 @@ def only_justs(maybes)
   map_maybe(maybes, &:itself)
 end
 
-def best_buy_parse_list(list)
-  only_justs(list.search('.sku-item').map { |i| best_buy_attributes(i) })
+# Utility methods for parsing TV string titles
+module ParseTitle
+  BRANDS = %w[
+    ATYME AVERA AXESS CROWN ELEMENT FURRION GPX HISENSE HITACHI INSIGNIA JENSEN
+    JVC KC LG MAGNAVOX NAXA PANASONIC PHILIPS PHILLIPS POLAROID PROSCAN PYLE
+    RCA SAMSUNG SANYO SCEPTRE SEIKI SHARP SHARP SILO SKYWORTH SKYWORTH SONY
+    SPELER SUNBRITE SUNBRITETV SUPERSONIC SÉURA TCL TOSHIBA VIEWSONIC VIZIO
+    WESTINGHOUSE
+  ].freeze
+
+  private
+
+  def find_match(title, regex)
+    Maybe.new(title.match(regex)).map(&:to_s)
+  end
+
+  def brand_decoder(title)
+    title = title.gsub(/[^a-z ]/i, '').upcase # Remove TM symbols
+
+    Maybe
+      .new((title.split(' ') & BRANDS).first)
+      .or_effect { puts "Could not decode brand: #{title}" if DEBUG }
+  end
+
+  def size_decoder(title)
+    # Explude any TVs in the single-digit size. Too small, and too easily
+    # confused with other numbers (such as soundbar sizes).
+    nums = /\d{2,}(\.\d{0,2})?/
+
+    Maybe
+      .nothing
+      .or_else { find_match(title, /\b#{nums}["”']/) }
+      .or_else { find_match(title, /\b#{nums}.?inch\b/i) }
+      .or_else { find_match(title, /\b#{nums}.?in\b/i) }
+      .or_else { find_match(title, /\b#{nums}.?Class/) }
+      .map { |s| s.match(/#{nums}/).to_s }
+      .or_effect { puts "Could not decode size: #{title}" if DEBUG }
+  end
+
+  def tech_decoder(title)
+    find_match(title, /\b[OQUX]?LED\b/i)
+      .or_else { find_match(title, /\bquantum\b/i).map { 'QLED' } }
+      .or_effect { puts "Could not decode tech: #{title}" if DEBUG }
+      .get_or_else('LED')
+      .upcase
+  end
+
+  def k_to_p(nk_res)
+    {
+      '1k' => '1080p',
+      '4k' => '2160p',
+      '5k' => '2160p',
+      '8k' => '4320p'
+    }.fetch(nk_res.downcase)
+  end
+
+  def explicit_res_matcher(title)
+    find_match(title, /\b\d+p\b/i)
+  end
+
+  def nk_matcher(title)
+    find_match(title, /\b\dk\b/i)
+      .map { |nk| k_to_p(nk) }
+  end
+
+  def uhd_matcher(title)
+    Maybe
+      .nothing
+      .or_else { find_match(title, /\buhd\b/i).map { '2160p' } }
+      .or_else { find_match(title, /\bultra hd\b/i).map { '2160p' } }
+  end
+
+  def hd_matcher(title)
+    Maybe
+      .nothing
+      .or_else { find_match(title, /\bhd\b/i).map { '1080p' } }
+      .or_else { find_match(title, /\bhdtv\b/i).map { '1080p' } }
+      .or_else { find_match(title, /\bfhd\b/i).map { '1080p' } }
+  end
+
+  def nxn_matcher(title)
+    find_match(title, /\d+.?x.?\d+/i).map { |s| "#{s.scan(/\d+/).last}p" }
+  end
+
+  def resolution_decoder(title)
+    Maybe
+      .nothing
+      .or_else { explicit_res_matcher(title) }
+      .or_else { nk_matcher(title) }
+      .or_else { uhd_matcher(title) }
+      .or_else { hd_matcher(title) }
+      .or_else { nxn_matcher(title) }
+      .map(&:downcase)
+      .or_effect { puts "Could not decode resolution: #{title}" if DEBUG }
+  end
+
+  def basic_attributes(title)
+    Maybe
+      .just(title: title)
+      .assign(:size) { size_decoder(title) }
+      .assign(:resolution) { resolution_decoder(title) }
+      .assign(:tech) { tech_decoder(title) }
+      .assign(:brand) { brand_decoder(title) }
+  end
 end
 
-def costco_parse_list(list)
-  only_justs(list.search('.product').map { |i| costco_attributes(i) })
+# Parse TV info from an HTML page
+class HtmlTvScraper
+  include ParseTitle
+
+  def initialize(**args)
+    @store = args.fetch(:store)
+    @base_url = args.fetch(:base_url)
+    @list_query = args.fetch(:list_query)
+    @item_query = args.fetch(:item_query)
+    @title_query = args.fetch(:title_query)
+    @price_query = args.fetch(:price_query)
+    @url_query = args.fetch(:url_query)
+  end
+
+  def results(html, page)
+    html
+      .search(list_query)
+      .map { |list| parse_list(list) }
+      .map { |items| items.map { |attrs| attrs.merge(page: page) } }
+  end
+
+  private
+
+  attr_reader(
+    :store,
+    :base_url,
+    :list_query,
+    :item_query,
+    :title_query,
+    :price_query,
+    :url_query
+  )
+
+  def parse_at(doc, css_path)
+    Maybe.new(doc.at(css_path))
+  end
+
+  def text_at(doc, css_path)
+    parse_at(doc, css_path)
+      .map(&:text)
+      .or_effect { puts "Could not find text_at: #{css_path}" if DEBUG }
+  end
+
+  def parse_list(list)
+    only_justs(list.search(item_query).map { |i| attributes(i) })
+  end
+
+  def safe_encode(string)
+    string.encode('UTF-8', invalid: :replace, undef: :replace, replace: '?')
+  end
+
+  def item_title(item)
+    text_at(item, title_query)
+      .map { |s| safe_encode(s) }
+      .get_or_else('')
+      .gsub(/\s+/, ' ')
+  end
+
+  def item_url(item)
+    text_at(item, url_query)
+      .map { |ref| ref.match?(/^https?:/) ? ref : "#{base_url}#{ref}" }
+  end
+
+  def item_price(item)
+    text_at(item, price_query)
+      .map { |s| s.match(/\$[\d\,]+(\.\d\d)?/)&.to_s }
+      .or_effect { item_url(item).effect { |a| p a if DEBUG } }
+  end
+
+  def attributes(item)
+    basic_attributes(item_title(item))
+      .assign(:store) { store }
+      .assign(:price) { item_price(item) }
+      .assign(:url) { item_url(item) }
+  end
 end
 
-def amazon_parse_list(list)
-  only_justs(list.search('.s-result-item').map { |i| amazon_attributes(i) })
-end
-
-def frys_parse_list(list)
-  only_justs(list.search('.product').map { |i| frys_attributes(i) })
-end
-
-def newegg_parse_list(list)
-  only_justs(list.search('.item-container').map { |i| newegg_attributes(i) })
+def write_attrs(attrs, csv)
+  csv << HEADERS.map { |key| attrs[key] }
 end
 
 def get_doc(uri, store, page)
@@ -474,19 +399,17 @@ def get_json(uri, store, page)
 end
 
 def best_buy_results(uri)
+  scraper = HtmlTvScraper.new(BEST_BUY_CONFIG)
   Parallel.map(1..12) do |page|
-    get_doc("#{uri}&cp=#{page}", 'BestBuy', page)
-      .search('.sku-item-list')
-      .map { |list| best_buy_parse_list(list) }
-      .map { |items| items.map { |attrs| attrs.merge(page: page) } }
+    scraper.results(get_doc("#{uri}&cp=#{page}", 'BestBuy', page), page)
   end.flatten
 end
 
 def costco_results(uri)
-  parse_at(get_doc(uri, 'Costco', 1), '.product-list')
-    .map { |list| costco_parse_list(list) }
-    .map { |items| items.map { |attrs| attrs.merge(page: 1) } }
-    .get_or_else([])
+  HtmlTvScraper
+    .new(COSTCO_CONFIG)
+    .results(get_doc(uri, 'Costco', 1), 1)
+    .flatten
 end
 
 def fetch_next_amazon_results(doc, page)
@@ -499,23 +422,15 @@ end
 
 def fetch_amazon_results(uri, page = 1)
   doc = get_doc("#{uri}&page=#{page}&ref=sr_pg_#{page}", 'Amazon', page)
-
-  results =
-    doc
-    .search('.s-result-list')
-    .map { |list| amazon_parse_list(list) }
-    .map { |items| items.map { |attrs| attrs.merge(page: page) } }
-    .flatten
+  results = HtmlTvScraper.new(AMAZON_CONFIG).results(doc, page)
 
   results + fetch_next_amazon_results(doc, page)
 end
 
 def use_cached_amazon_results(uri, pages)
+  scraper = HtmlTvScraper.new(AMAZON_CONFIG)
   Parallel.map(1..pages) do |page|
-    get_doc(uri, 'Amazon', page)
-      .search('.s-result-list')
-      .map { |list| amazon_parse_list(list) }
-      .map { |items| items.map { |attrs| attrs.merge(page: page) } }
+    scraper.results(get_doc(uri, 'Amazon', page), page)
   end.flatten
 end
 
@@ -533,34 +448,63 @@ def amazon_results(uri)
   end
 end
 
-def walmart_results(uri)
-  Parallel.map(1..13) do |page|
-    only_justs(
-      get_json("#{uri}&page=#{page}", 'Walmart', page)['items']
-      .map { |item| walmart_attributes(item) }
-    ).map { |attrs| attrs.merge(page: page) }
-  end.flatten
+class WalmartScraper
+  include ParseTitle
+
+  def results(uri)
+    Parallel.map(1..13) do |page|
+      only_justs(
+        get_json("#{uri}&page=#{page}", 'Walmart', page)['items']
+        .map { |item| walmart_attributes(item) }
+      ).map { |attrs| attrs.merge(page: page) }
+    end.flatten
+  end
+
+  private
+
+  def walmart_price(item)
+    Maybe
+      .new(item.dig('primaryOffer', 'offerPrice'))
+      .or_effect { walmart_url(item).effect { |a| p a if DEBUG } }
+  end
+
+  def base_url
+    'https://www.walmart.com'
+  end
+
+  def walmart_url(item)
+    Maybe
+      .new(item.dig('productPageUrl'))
+      .map { |ref| ref.match?(/^https:/) ? ref : "#{base_url}#{ref}" }
+  end
+
+  def walmart_title(item)
+    item.dig('title') || ''
+  end
+
+  def walmart_attributes(item)
+    basic_attributes(walmart_title(item))
+      .assign(:store) { 'Walmart' }
+      .assign(:price) { walmart_price(item) }
+      .assign(:url) { walmart_url(item) }
+  end
 end
 
 def frys_results(uri)
   per = 20
+  scraper = HtmlTvScraper.new(FRYS_CONFIG)
   Parallel.map(1..20) do |page|
     start = per * (page - 1)
     page_uri = "#{uri}?page=#{page}&start=#{start}&rows=#{per}"
 
-    get_doc(page_uri, 'Frys', page)
-      .search('#rightCol')
-      .map { |list| frys_parse_list(list) }
-      .map { |items| items.map { |attrs| attrs.merge(page: page) } }
+    scraper.results(get_doc(page_uri, 'Frys', page), page)
   end.flatten
 end
 
 def newegg_results(uri)
+  scraper = HtmlTvScraper.new(NEWEGG_CONFIG)
   Parallel.map(1..29) do |page|
-    get_doc("#{uri}&page=#{page}", 'Newegg', page)
-      .search('.items-view.is-grid')
-      .map { |list| newegg_parse_list(list) }
-      .map { |items| items.map { |attrs| attrs.merge(page: page) } }
+    scraper.results(get_doc("#{uri}&page=#{page}", 'Newegg', page), page)
   end.flatten
 end
 
@@ -574,10 +518,7 @@ def sortable_array(hash)
     hash[:tech],
     just_number(hash[:resolution]),
     just_number(hash[:price]),
-    hash[:brand],
-    hash[:store],
-    hash[:page],
-    hash[:url]
+    *hash.values_at(:brand, :store, :page, :url)
   ]
 end
 
@@ -586,7 +527,7 @@ results = []
 results += best_buy_results(BEST_BUY_URI)
 results += costco_results(COSTCO_URI)
 results += amazon_results(AMAZON_URI)
-results += walmart_results(WALMART_URI)
+results += WalmartScraper.new.results(WALMART_URI)
 results += frys_results(FRYS_URI)
 results += newegg_results(NEWEGG_URI)
 
