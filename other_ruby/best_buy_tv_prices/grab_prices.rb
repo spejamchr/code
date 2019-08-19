@@ -241,17 +241,22 @@ def newegg_url(item)
   url_from_ref('https://www.newegg.com', text_at(item, css_path))
 end
 
+def fetch_price(item, css_path)
+  text_at(item, css_path).map { |s| s.match(/\$[\d\,]+(\.\d\d)?/)&.to_s }
+end
+
 def best_buy_price(item)
-  parse_at(item, '.price-block .priceView-hero-price.priceView-customer-price')
-    .map { |prices| prices.children[1]&.text&.match(/\$.+/)&.to_s }
+  fetch_price(item, '.price-block .priceView-customer-price')
+    .or_effect { best_buy_url(item).effect { |a| p a if DEBUG } }
 end
 
 def costco_price(item)
-  text_at(item, '.caption .price')
+  fetch_price(item, '.caption .price')
+    .or_effect { costco_url(item).effect { |a| p a if DEBUG } }
 end
 
 def amazon_price(item)
-  text_at(item, '.a-offscreen')
+  fetch_price(item, '.a-offscreen')
     .or_effect { amazon_url(item).effect { |a| p a if DEBUG } }
 end
 
@@ -262,14 +267,12 @@ def walmart_price(item)
 end
 
 def frys_price(item)
-  text_at(item, '.toGridPriceHeight ul li .red_txt')
-    .map { |t| t.gsub(/\s+/, '') }
+  fetch_price(item, '.toGridPriceHeight ul li .red_txt')
     .or_effect { frys_url(item).effect { |a| p a if DEBUG } }
 end
 
 def newegg_price(item)
-  text_at(item, '.item-action .price-current')
-    .map { |t| t.match(/\$[\d\,]+(\.\d\d)?/)&.to_s }
+  fetch_price(item, '.item-action .price-current')
     .or_effect { newegg_url(item).effect { |a| p a if DEBUG } }
 end
 
