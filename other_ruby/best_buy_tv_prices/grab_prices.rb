@@ -104,6 +104,9 @@ WALMART_URI =
 FRYS_URI =
   'https://www.frys.com/category/Outpost/Video/Televisions'
 
+NEWEGG_URI =
+  'https://www.newegg.com/p/pl?N=100167585%204814'
+
 # Represent a possibly present value
 class Maybe
   def self.nothing
@@ -201,43 +204,41 @@ def frys_title(item)
   parse_title(item, '.productDescp a')
 end
 
-def best_buy_ref(item)
-  text_at(item, '.information .sku-title a @href')
+def newegg_title(item)
+  parse_title(item, '.item-info .item-title')
+end
+
+def url_from_ref(base_url, maybe)
+  maybe.map { |ref| ref.match?(/^https:/) ? ref : "#{base_url}#{ref}" }
 end
 
 def best_buy_url(item)
-  best_buy_ref(item).map { |ref| "https://www.bestbuy.com#{ref}" }
+  css_path = '.information .sku-title a @href'
+  url_from_ref('https://www.bestbuy.com', text_at(item, css_path))
 end
 
 def costco_url(item)
-  text_at(item, '.description a @href')
-end
-
-def amazon_ref(item)
-  text_at(item, 'a @href')
+  css_path = '.description a @href'
+  url_from_ref('https://www.costco.com', text_at(item, css_path))
 end
 
 def amazon_url(item)
-  amazon_ref(item)
-    .map { |ref| ref.match?(/^https:/) ? ref : "https://www.amazon.com#{ref}" }
-end
-
-def walmart_ref(item)
-  Maybe.new(item.dig('productPageUrl'))
+  css_path = 'a @href'
+  url_from_ref('https://www.amazon.com', text_at(item, css_path))
 end
 
 def walmart_url(item)
-  walmart_ref(item)
-    .map { |ref| ref.match?(/^https:/) ? ref : "https://www.walmart.com#{ref}" }
-end
-
-def frys_ref(item)
-  text_at(item, '.productDescp a @href')
+  url_from_ref('https://www.walmart.com', Maybe.new(item.dig('productPageUrl')))
 end
 
 def frys_url(item)
-  frys_ref(item)
-    .map { |ref| ref.match?(/^https:/) ? ref : "https://www.frys.com#{ref}" }
+  css_path = '.productDescp a @href'
+  url_from_ref('https://www.frys.com', text_at(item, css_path))
+end
+
+def newegg_url(item)
+  css_path = '.item-info a.item-title @href'
+  url_from_ref('https://www.newegg.com', text_at(item, css_path))
 end
 
 def best_buy_price(item)
@@ -266,6 +267,12 @@ def frys_price(item)
     .or_effect { frys_url(item).effect { |a| p a if DEBUG } }
 end
 
+def newegg_price(item)
+  text_at(item, '.item-action .price-current')
+    .map { |t| t.match(/\$[\d\,]+(\.\d\d)?/)&.to_s }
+    .or_effect { newegg_url(item).effect { |a| p a if DEBUG } }
+end
+
 def find_match(title, regex)
   Maybe.new(title.match(regex)).map(&:to_s)
 end
@@ -279,7 +286,9 @@ def brand_decoder(title)
 end
 
 def size_decoder(title)
-  nums = /[\d\.]+/
+  # Explude any TVs in the single-digit size. Too small, and too easily
+  # confused with other numbers (such as soundbar sizes).
+  nums = /\d{2,}(\.\d{0,2})?/
 
   Maybe
     .nothing
@@ -387,6 +396,12 @@ def frys_attributes(item)
     .assign(:url) { frys_url(item) }
 end
 
+def newegg_attributes(item)
+  basic_attributes(newegg_title(item), 'Newegg')
+    .assign(:price) { newegg_price(item) }
+    .assign(:url) { newegg_url(item) }
+end
+
 def write_attrs(attrs, csv)
   csv << HEADERS.map { |key| attrs[key] }
 end
@@ -419,6 +434,10 @@ end
 
 def frys_parse_list(list)
   only_justs(list.search('.product').map { |i| frys_attributes(i) })
+end
+
+def newegg_parse_list(list)
+  only_justs(list.search('.item-container').map { |i| newegg_attributes(i) })
 end
 
 def get_doc(uri, store, page)
@@ -533,6 +552,15 @@ def frys_results(uri)
   end.flatten
 end
 
+def newegg_results(uri)
+  Parallel.map(1..29) do |page|
+    get_doc("#{uri}&page=#{page}", 'Newegg', page)
+      .search('.items-view.is-grid')
+      .map { |list| newegg_parse_list(list) }
+      .map { |items| items.map { |attrs| attrs.merge(page: page) } }
+  end.flatten
+end
+
 def just_number(string)
   string.to_s.gsub(/[^\d\.]/, '').to_f
 end
@@ -557,6 +585,7 @@ results += costco_results(COSTCO_URI)
 results += amazon_results(AMAZON_URI)
 results += walmart_results(WALMART_URI)
 results += frys_results(FRYS_URI)
+results += newegg_results(NEWEGG_URI)
 
 results.sort_by! { |i| sortable_array(i) }
 
