@@ -61,6 +61,14 @@ FRYS_URI =
 NEWEGG_URI =
   'https://www.newegg.com/p/pl?N=100167585%204814'
 
+TARGET_URI =
+  'https://redsky.target.com/v2/plp/search/' \
+  '?category=5xtdj' \
+  '&default_purchasability_filter=true' \
+  '&pricing_store_id=1357' \
+  '&store_ids=1357' \
+  '&key=eb2551e4accc14f38cc42d32fbc2b2ea'
+
 BEST_BUY_CONFIG = {
   store: 'Best Buy',
   base_url: 'https://www.bestbuy.com',
@@ -73,10 +81,19 @@ BEST_BUY_CONFIG = {
 WALMART_CONFIG = {
   store: 'Walmart',
   base_url: 'https://www.walmart.com',
-  item_query: ['items'],
-  title_query: ['title'].freeze,
-  price_query: ['primaryOffer', 'offerPrice'].freeze,
-  url_query: ['productPageUrl'].freeze,
+  item_query: %w[items],
+  title_query: %w[title].freeze,
+  price_query: %w[primaryOffer offerPrice].freeze,
+  url_query: %w[productPageUrl].freeze
+}.freeze
+
+TARGET_CONFIG = {
+  store: 'TARGET',
+  base_url: 'https://www.target.com',
+  item_query: %w[search_response items Item],
+  title_query: %w[title].freeze,
+  price_query: %w[price current_retail].freeze,
+  url_query: %w[url].freeze
 }.freeze
 
 COSTCO_CONFIG = {
@@ -456,6 +473,18 @@ def walmart_results(uri)
   end.flatten
 end
 
+def target_results(uri)
+  per = 24
+  scraper = JsonScraper.new(TARGET_CONFIG)
+  Parallel.map(1..3) do |page|
+    start = per * (page - 1)
+    scraper.results(
+      get_json("#{uri}&count=#{per}&offset=#{start}", 'Target', page),
+      page
+    )
+  end.flatten
+end
+
 def fetch_next_amazon_results(doc, page)
   text_at(doc, '#pagnNextLink @href')
     .or_else { text_at(doc, '.a-pagination .a-last a @href') }
@@ -530,7 +559,8 @@ tasks = [
   -> { amazon_results(AMAZON_URI) },
   -> { walmart_results(WALMART_URI) },
   -> { frys_results(FRYS_URI) },
-  -> { newegg_results(NEWEGG_URI) }
+  -> { newegg_results(NEWEGG_URI) },
+  -> { target_results(TARGET_URI) }
 ]
 
 results =
