@@ -64,17 +64,24 @@ NEWEGG_URI =
 BEST_BUY_CONFIG = {
   store: 'Best Buy',
   base_url: 'https://www.bestbuy.com',
-  list_query: '.sku-item-list',
   item_query: '.sku-item',
   title_query: '.information .sku-title a',
   price_query: '.price-block .priceView-hero-price.priceView-customer-price',
   url_query: '.information .sku-title a @href'
 }.freeze
 
+WALMART_CONFIG = {
+  store: 'Walmart',
+  base_url: 'https://www.walmart.com',
+  item_query: ['items'],
+  title_query: ['title'].freeze,
+  price_query: ['primaryOffer', 'offerPrice'].freeze,
+  url_query: ['productPageUrl'].freeze,
+}.freeze
+
 COSTCO_CONFIG = {
   store: 'Costco',
   base_url: 'https://www.costco.com',
-  list_query: '.product-list',
   item_query: '.product',
   title_query: '.description a',
   price_query: '.caption .price',
@@ -84,7 +91,6 @@ COSTCO_CONFIG = {
 AMAZON_CONFIG = {
   store: 'Amazon',
   base_url: 'https://www.amazon.com',
-  list_query: '.s-result-list',
   item_query: '.s-result-item',
   title_query: 'img @alt',
   price_query: '.a-offscreen',
@@ -94,7 +100,6 @@ AMAZON_CONFIG = {
 FRYS_CONFIG = {
   store: 'Frys',
   base_url: 'https://www.frys.com',
-  list_query: '#rightCol',
   item_query: '.product',
   title_query: '.productDescp a',
   price_query: '.toGridPriceHeight ul li .red_txt',
@@ -104,7 +109,6 @@ FRYS_CONFIG = {
 NEWEGG_CONFIG = {
   store: 'Newegg',
   base_url: 'https://www.newegg.com',
-  list_query: '.items-view.is-grid',
   item_query: '.item-container',
   title_query: '.item-info .item-title',
   price_query: '.item-action .price-current',
@@ -262,7 +266,8 @@ module ParseTitle
   end
 
   def nxn_matcher(title)
-    find_match(title, /\d+.?x.?\d+/i).map { |s| "#{s.scan(/\d+/).last}p" }
+    find_match(title, /\d+.?x.?\d+/i)
+      .map { |s| "#{s.scan(/\d+/).last}p" }
   end
 
   def resolution_decoder(title)
@@ -287,25 +292,25 @@ module ParseTitle
   end
 end
 
-# Parse TV info from an HTML page
-class HtmlTvScraper
+# Parent of all scrapers
+#
+# Scrapers must define private methods which recieve a TV list item:
+#   - item_title
+#   - item_price
+#   - item_url
+#
+# And should define a public `results` method
+#
+class ScraperBase
   include ParseTitle
 
   def initialize(**args)
     @store = args.fetch(:store)
     @base_url = args.fetch(:base_url)
-    @list_query = args.fetch(:list_query)
     @item_query = args.fetch(:item_query)
     @title_query = args.fetch(:title_query)
     @price_query = args.fetch(:price_query)
     @url_query = args.fetch(:url_query)
-  end
-
-  def results(html, page)
-    html
-      .search(list_query)
-      .map { |list| parse_list(list) }
-      .map { |items| items.map { |attrs| attrs.merge(page: page) } }
   end
 
   private
@@ -313,25 +318,38 @@ class HtmlTvScraper
   attr_reader(
     :store,
     :base_url,
-    :list_query,
     :item_query,
     :title_query,
     :price_query,
     :url_query
   )
 
-  def parse_at(doc, css_path)
-    Maybe.new(doc.at(css_path))
+  def fetch_results(items, page)
+    only_justs(items.map { |i| attributes(i) })
+      .map { |attrs| attrs.merge(page: page) }
   end
+
+  def attributes(item)
+    basic_attributes(item_title(item))
+      .assign(:store) { store }
+      .assign(:price) { item_price(item) }
+      .assign(:url) { item_url(item) }
+  end
+end
+
+# Parse TV info from an HTML page
+class HtmlTvScraper < ScraperBase
+  def results(html, page)
+    fetch_results(html.search(item_query), page)
+  end
+
+  private
 
   def text_at(doc, css_path)
-    parse_at(doc, css_path)
+    Maybe
+      .new(doc.at(css_path))
       .map(&:text)
       .or_effect { puts "Could not find text_at: #{css_path}" if DEBUG }
-  end
-
-  def parse_list(list)
-    only_justs(list.search(item_query).map { |i| attributes(i) })
   end
 
   def safe_encode(string)
@@ -355,17 +373,33 @@ class HtmlTvScraper
       .map { |s| s.match(/\$[\d\,]+(\.\d\d)?/)&.to_s }
       .or_effect { item_url(item).effect { |a| p a if DEBUG } }
   end
-
-  def attributes(item)
-    basic_attributes(item_title(item))
-      .assign(:store) { store }
-      .assign(:price) { item_price(item) }
-      .assign(:url) { item_url(item) }
-  end
 end
 
-def write_attrs(attrs, csv)
-  csv << HEADERS.map { |key| attrs[key] }
+# Parse TV info from a list of JSON objects
+class JsonScraper < ScraperBase
+  def results(json, page)
+    fetch_results(fetch(json, item_query).get_or_else([]), page)
+  end
+
+  private
+
+  def fetch(item, query)
+    Maybe.new(item.dig(*query))
+  end
+
+  def item_title(item)
+    fetch(item, title_query).get_or_else('')
+  end
+
+  def item_url(item)
+    fetch(item, url_query)
+      .map { |ref| ref.match?(/^https:/) ? ref : "#{base_url}#{ref}" }
+  end
+
+  def item_price(item)
+    fetch(item, price_query)
+      .or_effect { item_url(item).effect { |a| p a if DEBUG } }
+  end
 end
 
 def get_doc(uri, store, page)
@@ -412,6 +446,16 @@ def costco_results(uri)
     .flatten
 end
 
+def walmart_results(uri)
+  scraper = JsonScraper.new(WALMART_CONFIG)
+  Parallel.map(1..13) do |page|
+    scraper.results(
+      get_json("#{uri}&page=#{page}", 'Walmart', page),
+      page
+    )
+  end.flatten
+end
+
 def fetch_next_amazon_results(doc, page)
   text_at(doc, '#pagnNextLink @href')
     .or_else { text_at(doc, '.a-pagination .a-last a @href') }
@@ -448,48 +492,6 @@ def amazon_results(uri)
   end
 end
 
-class WalmartScraper
-  include ParseTitle
-
-  def results(uri)
-    Parallel.map(1..13) do |page|
-      only_justs(
-        get_json("#{uri}&page=#{page}", 'Walmart', page)['items']
-        .map { |item| walmart_attributes(item) }
-      ).map { |attrs| attrs.merge(page: page) }
-    end.flatten
-  end
-
-  private
-
-  def walmart_price(item)
-    Maybe
-      .new(item.dig('primaryOffer', 'offerPrice'))
-      .or_effect { walmart_url(item).effect { |a| p a if DEBUG } }
-  end
-
-  def base_url
-    'https://www.walmart.com'
-  end
-
-  def walmart_url(item)
-    Maybe
-      .new(item.dig('productPageUrl'))
-      .map { |ref| ref.match?(/^https:/) ? ref : "#{base_url}#{ref}" }
-  end
-
-  def walmart_title(item)
-    item.dig('title') || ''
-  end
-
-  def walmart_attributes(item)
-    basic_attributes(walmart_title(item))
-      .assign(:store) { 'Walmart' }
-      .assign(:price) { walmart_price(item) }
-      .assign(:url) { walmart_url(item) }
-  end
-end
-
 def frys_results(uri)
   per = 20
   scraper = HtmlTvScraper.new(FRYS_CONFIG)
@@ -522,23 +524,24 @@ def sortable_array(hash)
   ]
 end
 
-results = []
+tasks = [
+  -> { best_buy_results(BEST_BUY_URI) },
+  -> { costco_results(COSTCO_URI) },
+  -> { amazon_results(AMAZON_URI) },
+  -> { walmart_results(WALMART_URI) },
+  -> { frys_results(FRYS_URI) },
+  -> { newegg_results(NEWEGG_URI) }
+]
 
-results += best_buy_results(BEST_BUY_URI)
-results += costco_results(COSTCO_URI)
-results += amazon_results(AMAZON_URI)
-results += WalmartScraper.new.results(WALMART_URI)
-results += frys_results(FRYS_URI)
-results += newegg_results(NEWEGG_URI)
-
-results.sort_by! { |i| sortable_array(i) }
+results =
+  Parallel
+  .flat_map(tasks, &:call)
+  .sort_by { |i| sortable_array(i) }
+  .group_by { |i| i[:url] }
+  .values
+  .map(&:first)
 
 CSV.open('scraped_televisions.csv', 'wb') do |csv|
   csv << HEADERS
-
-  results
-    .group_by { |i| i[:url] }
-    .values
-    .map(&:first)
-    .each { |attrs| write_attrs(attrs, csv) }
+  results.each { |attrs| csv << HEADERS.map { |key| attrs[key] } }
 end
