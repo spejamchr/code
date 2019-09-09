@@ -21,16 +21,15 @@
 #
 #   1, 2, 1, 2, _, _, 1, 2, _, _, _, _, _, _, 1, 2, ...
 #
-# In this example we can nest the first two sub-sequences, but can we add a
-# third?
+# In this example we can nest the first two sub-sequences. Can we add a third?
 #
 #   1, 2, 1, 2, _, _, 1, 2, _, _, _, _, _, _, 1, 2, ...
 #               3, _, 3, _, _, _, 3, _, _, _, _, _, _, _, 3, ...
 #                     X
 #
 # Nope. We can't build a nested sequence by shifting identical sub-sequences
-# built from this parent sequence.  We want them to fit together like perfect
-# Russian nesting dolls.
+# built from this parent sequence. We want the sub-sequences to fit together
+# perfectly like Russian nesting dolls.
 #
 # A simple group of solutions is any constant parent sequence, such as: 2, 2,
 # 2, 2, ...  This example will create a cyclical nested sequence with two
@@ -64,7 +63,7 @@ class Nester
     items = flat.count
     avg = items / groups.count.to_f
     puts "#{items} items (#{avg} items per group)"
-    puts "Max item: #{flat.max}"
+    puts "sub-sequences: #{flat.max}"
   end
 
   private
@@ -114,50 +113,48 @@ def trib(n)
   @trib[n] ||= trib(n-3) + trib(n - 2) + trib(n - 1)
 end
 
-def custom(n, base)
-  @custom ||= {}
-  @custom[base] ||= { 0 => base }
-  cache = @custom[base]
+def nester(base)
+  cache = { 0 => base }
 
-  exp = 1
-  exp += 1 while (n % base**exp).zero? && (base**exp > base**(exp - 1))
-  exp -= 1
+  based_nester = lambda do |n|
+    exp = 1
+    exp += 1 while (n % base**exp).zero? && (base**exp > base**(exp - 1))
+    exp -= 1
 
-  return cache[exp] if cache[exp]
+    return cache[exp] if cache[exp]
 
-  if n == base**exp
-    cache[exp] ||= ((1...n).map { |i| custom(i, base) }.sum + 1) * base
-  else
-    raise 'crap'
+    if n == base**exp
+      cache[exp] ||= ((1...n).map(&based_nester).sum + 1) * base
+    else
+      raise 'crap'
+    end
   end
 end
 
 PARENT_SEQUENCES = {
-  integers: (1..),
-  fib: (2..).lazy.map { |n| fib(n) },
-  trib: (3..).lazy.map { |n| trib(n) },
-  double: (1..).lazy.map { |n| 2**n },
-  triple: (1..).lazy.map { |n| 3**n },
-  quad: (1..).lazy.map { |n| 4**n },
-  quint: (1..).lazy.map { |n| 5**n },
-  cycle: [2].lazy.cycle, # Boring, but works
-  custom1: (1..).lazy.map { |n| custom(n, 1) }, # Works!
-  custom2: (1..).lazy.map { |n| custom(n, 2) }, # Works!
-  custom3: (1..).lazy.map { |n| custom(n, 3) }, # Works!
-  custom4: (1..).lazy.map { |n| custom(n, 4) }, # Works!
+  # integers: (1..),
+  # fib: (2..).lazy.map { |n| fib(n) },
+  # trib: (3..).lazy.map { |n| trib(n) },
+  # double: (1..).lazy.map { |n| 2**n },
+  # triple: (1..).lazy.map { |n| 3**n },
+  # quad: (1..).lazy.map { |n| 4**n },
+  # quint: (1..).lazy.map { |n| 5**n },
+  # cycle: [2].lazy.cycle, # Boring, but works
+  nester1: (1..).lazy.map(&nester(1)), # Works!
+  nester2: (1..).lazy.map(&nester(2)), # Works!
+  nester3: (1..).lazy.map(&nester(3)), # Works!
+  nester4: (1..).lazy.map(&nester(4)), # Works!
 }.freeze
 
 PARENT_SEQUENCES.each do |k, s|
-  puts k
-  puts s.first(20).inspect
+  puts "#{k.to_s.rjust(15)}: #{s.first(20)}"
 end
 
 def test(seq)
+  puts
   puts seq
-  Nester.new(PARENT_SEQUENCES.fetch(seq)).info(500)
+  Nester.new(PARENT_SEQUENCES.fetch(seq)).info(100000)
 end
-
-puts
 
 PARENT_SEQUENCES.keys.each { |seq| test(seq) }
 
