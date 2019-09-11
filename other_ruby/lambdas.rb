@@ -3,7 +3,7 @@
 # if t and s are lambda terms, then t[s] is a lambda term (called an application).
 
 module LogAround
-  def peep(method)
+  def peep(method, &block)
     ali = "_orig_#{method}".to_sym
     alias_method ali, method
 
@@ -12,6 +12,7 @@ module LogAround
       puts "[#{id}] Calling #{method} with args #{args.inspect} on #{inspect}"
 
       result = send(ali, *args)
+      yield(result, *args) if block_given?
 
       puts "[#{id}] Returned #{method} #{result.inspect}"
       result
@@ -26,7 +27,7 @@ class LambDeBruijn
     private :new
 
     def variable(var)
-      accepts(Integer, var)
+      accepts(var, Integer)
       new({ kind: :variable, term: var })
     end
 
@@ -38,14 +39,16 @@ class LambDeBruijn
       new({ kind: :application, term: wrap(term), var: wrap(var) })
     end
 
-    def accepts(klass, var)
-      raise "Expected #{klass} but got #{var.class}: #{var}" unless klass === var
+    def accepts(var, *klasses)
+      if klasses.none? { |k| k === var }
+        # raise "Expected one of #{klasses} but got #{var.class}: #{var}"
+      end
     end
 
     def wrap(term, klass = nil)
       klass ||= self
       term = klass.variable(term) if Integer === term
-      accepts(klass, term)
+      accepts(term, klass, Proc)
       term
     end
   end
@@ -72,27 +75,19 @@ class LambDeBruijn
     define_method(key) { |*a| self.class.public_send(key, *a) }
   end
 
+  def lamb?(thing)
+    self.class === thing
+  end
+
   def inspect
+    t = Proc === term ? 'PROC' : term.inspect
     case kind
     when :variable
-      term.to_s
+      t
     when :abstraction
-      "l[ #{term.inspect} ]"
+      "l[ #{t} ]"
     when :application
-      "#{term.inspect}[#{var.inspect}]"
-    end
-  end
-
-  def reduceable?
-    kind == :application && (term.kind == :abstraction || term.reduceable?)
-  end
-
-  def reduce
-    if reduceable?
-      result = term.inc_frees(-1).apply(var, 0)
-      result.kind == :abstraction ? result.term : result
-    else
-      self
+      "#{t}[#{Proc === var ? 'PROC' : var.inspect}]"
     end
   end
 
@@ -102,30 +97,103 @@ class LambDeBruijn
     when :variable
       term > bindings ? variable(term + diff) : self
     when :abstraction
-      abstraction(term.inc_frees(diff, bindings + 1))
+      lamb?(term) ? abstraction(term.inc_frees(diff, bindings + 1)) : self
     when :application
-      application(term.inc_frees(diff, bindings), var.inc_frees(diff, bindings))
+      t = lamb?(term) ? term.inc_frees(diff, bindings) : term
+      v = lamb?(var) ? var.inc_frees(diff, bindings) : var
+      application(t, v)
+    end
+  end
+
+  def reduceable?
+    kind == :application && lamb?(term) && (term.kind == :abstraction || term.reduceable?) || Proc === term
+  end
+
+  def reduce
+    result = one_reduction
+    while lamb?(result) && result.reduceable?
+      result = result.one_reduction
+    end
+    if lamb?(result) && Proc === result.term
+      puts "NOPE OVER HERE"
+      result.term.call(1)
+    end
+    result
+  end
+
+  def one_reduction
+    if reduceable?
+      if Proc === term
+        term.call(var)
+      elsif term.kind == :application
+        application(term.reduce, var)
+      else
+        result = term.inc_frees(-1).apply(var, 0)
+        if lamb?(result)
+          result.kind == :abstraction ? result.term : result
+        else
+          Proc === result ? result[result] : result
+        end
+      end
+    elsif kind == :application && Proc === term
+      puts "HERE I AM"
+      term[var]
+    else
+      puts "not reduceable: #{self.inspect}"
+      self
     end
   end
 
   def apply(arg, level)
     case kind
     when :variable
-      level == term ? arg.inc_frees(level - 1) : self
+      if level == term
+        arg.respond_to?(:inc_frees) ? arg.inc_frees(level - 1) : arg
+      else
+        self
+      end
+      # level == term ? arg.inc_frees(level - 1) : self
     when :abstraction
-      abstraction(term.apply(arg, level + 1))
+      if lamb?(term)
+        abstraction(term.apply(arg, level + 1))
+      elsif Proc === term
+        term[arg]
+      else
+        term
+      end
     when :application
       if level.zero?
         r = reduce
-        r.kind == :application ? r : r.apply(arg, level)
+        if lamb?(r)
+          r.kind == :application ? r : r.apply(arg, level)
+        else
+          # TODO: Is this right?
+          r
+        end
       else
-        application(term.apply(arg, level), var.apply(arg, level)).reduce
+        t = lamb?(term) ? term.apply(arg, level) : term
+        v = lamb?(var) ? var.apply(arg, level) : var
+        # application(t, v).reduce
+        application(t, v)
       end
+    end
+  end
+
+  def ==(other)
+    return false unless lamb?(other)
+    return false unless kind == other.kind
+
+    case kind
+    when :variable, :abstraction
+      term == other.term
+    when :application
+      term == other.term && var == other.var
     end
   end
 
   # peep :reduce
   # peep :apply
+  # peep :inc_frees
 end
 
 class Integer
@@ -172,10 +240,92 @@ matches('I[I].reduce', I[I].reduce, I.inspect)
 matches('I[K].reduce', I[K].reduce, K.inspect)
 matches('K[I].reduce', K[I].reduce, 'l[ l[ 1 ] ]')
 matches('S[K][K][1].reduce', S[K][K][1].reduce, 'l[ 2 ]')
-matches('PARTIAL.reduce', PARTIAL.reduce, I.inspect)
+matches('PARTIAL.reduce', PARTIAL.reduce, 'l[ l[ 1 ][1] ]')
 matches('WIKI.reduce', WIKI.reduce, WIKI_REDUCED.inspect)
 
 # Define Numbers
 
 ZERO = l[ l[   1  ] ]
 ONE =  l[ l[ 2[1] ] ]
+
+def to_int(lamb)
+  counter = 0
+  lamb[-> _ { counter += 1; _ }][3].reduce
+  counter
+end
+
+matches('to_int(ZERO)', to_int(ZERO), '0')
+matches('to_int(ONE)', to_int(ONE), '1')
+
+# Define Boleans
+
+T = l[ l[ 2 ] ]
+F = l[ l[ 1 ] ]
+
+def to_bool(lamb)
+  lamb[true][false].reduce
+end
+
+matches('to_bool(T)', to_bool(T), 'true')
+matches('to_bool(F)', to_bool(F), 'false')
+
+# Define predicates
+
+IS_ZERO = l[ 1[l[ F ]][T] ]
+
+matches('to_bool(IS_ZERO[ZERO])', to_bool(IS_ZERO[ZERO]), 'true')
+matches('to_bool(IS_ZERO[ONE])', to_bool(IS_ZERO[ONE]), 'false')
+
+# Numeric Operations
+
+INCREMENT = l[ l[ l[ 2[3[2][1]] ] ] ]
+DECREMENT = l[ l[ l[ 3[l[ l[ 1[2[4]] ] ]][l[ 2 ]][l[ 1 ]] ] ] ]
+
+matches('to_int(INCREMENT[ONE])', to_int(INCREMENT[ONE]), '2')
+matches('to_int(DECREMENT[ONE])', to_int(DECREMENT[ONE]), '0')
+
+ADD = l[ l[ 1[INCREMENT][2] ] ]
+SUBTRACT = l[ l[ 1[DECREMENT][2] ] ]
+MULTIPLY = l[ l[ 1[ADD[2]][ZERO] ] ]
+POWER = l[ l[ 1[MULTIPLY[2]][ONE] ] ]
+
+TWO =  l[ l[ 2[2[1]] ] ]
+# TWO = INCREMENT[ONE]
+THREE = INCREMENT[TWO]
+FOUR = POWER[TWO][TWO]
+FIVE = INCREMENT[FOUR]
+SIX = MULTIPLY[TWO][THREE]
+SEVEN = INCREMENT[SIX]
+EIGHT = POWER[TWO][THREE]
+NINE = POWER[THREE][TWO]
+TEN = MULTIPLY[TWO][FIVE]
+
+matches('to_int(TWO)', to_int(TWO), '2')
+matches('to_int(THREE)', to_int(THREE), '3')
+matches('to_int(FOUR)', to_int(FOUR), '4')
+matches('to_int(FIVE)', to_int(FIVE), '5')
+matches('to_int(SIX)', to_int(SIX), '6')
+matches('to_int(SEVEN)', to_int(SEVEN), '7')
+matches('to_int(EIGHT)', to_int(EIGHT), '8')
+matches('to_int(NINE)', to_int(NINE), '9')
+matches('to_int(TEN)', to_int(TEN), '10')
+
+IS_LESS_OR_EQUAL = l[ l[ IS_ZERO[SUBTRACT[2][1]] ] ]
+
+matches('to_bool(IS_LESS_OR_EQUAL[TEN][NINE])', to_bool(IS_LESS_OR_EQUAL[TEN][NINE]), 'false')
+matches('to_bool(IS_LESS_OR_EQUAL[TEN][TEN])', to_bool(IS_LESS_OR_EQUAL[TEN][TEN]), 'true')
+matches('to_bool(IS_LESS_OR_EQUAL[TWO][TEN])', to_bool(IS_LESS_OR_EQUAL[TWO][TEN]), 'true')
+
+MOD = Y[l[ l[ l[ IS_LESS_OR_EQUAL[1][2][l[ 4[SUBTRACT[3][2]][2][1] ]][2] ] ] ]]
+
+matches('to_int(MOD[THREE][TWO])', to_int(MOD[THREE][TWO]), '1')
+
+DIV = Y[l[ l[ l[ IS_LESS_OR_EQUAL[1][2][l[ INCREMENT[4[SUBTRACT[3][2]][2]][1] ]][ZERO] ] ] ]]
+
+matches('to_int(DIV[TEN][TWO])', to_int(DIV[TEN][TWO]), '5')
+
+# class LambDeBruijn
+#   peep :reduce
+#   peep :one_reduction
+#   peep :apply
+# end
