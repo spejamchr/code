@@ -55,20 +55,17 @@
 class BouncyBall
   def initialize(runway)
     @runway = runway
-    @path_count = {}
     @stops_from = {}
   end
 
   # This is the answer to the problem statement above.
   def stoppable?(initial_s)
-    reachable_stops(initial_s).count > 0
+    total_paths(initial_s) > 0
   end
 
   # Count the total number of stoppable paths.
   def total_paths(initial_s)
-    k = [initial_s, 0]
-    examine(*k)
-    @path_count[k]
+    reachable_stops(initial_s).count
   end
 
   # Get the indices of all the reachable stops.
@@ -82,28 +79,19 @@ class BouncyBall
 
   def examine(s, p)
     k = [s, p]
-    res = [@path_count[k], @stops_from[k]]
-    return res if res.all?
+    res = @stops_from[k]
+    return res if res
 
     if invalid?(s, p)
-      [
-        @path_count[k] = 0,
-        @stops_from[k] = []
-      ]
+      @stops_from[k] = []
     elsif stopped?(s, p)
-      [
-        @path_count[k] = 1,
-        @stops_from[k] = [p]
-      ]
+      @stops_from[k] = [p]
     else
       r1 = examine(s-1, p+s-1)
       r2 = examine(s, p+s)
       r3 = examine(s+1, p+s+1)
 
-      [
-        @path_count[k] = r1[0] + r2[0] + r3[0],
-        @stops_from[k] = (r1[1] + r2[1] + r3[1]).uniq
-      ]
+      @stops_from[k] = (r1 + r2 + r3).uniq
     end
   end
 
@@ -123,7 +111,7 @@ end
 START_TIME = Time.now
 
 # Adjust these for experiment
-L = 20
+L = 25
 PROB = 0.2
 PRE_ITERS = 1000000
 runways = PRE_ITERS.times.map do
@@ -162,7 +150,7 @@ ITERS.times.each do |iter|
   runway = runways[iter]
   bb = BouncyBall.new(runway)
 
-  (1..MAX_IS).each do |is|
+  (1..MAX_IS).to_a.shuffle.each do |is|
     a = Time.now
     stoppable = bb.stoppable?(is)
     total_paths = bb.total_paths(is)
