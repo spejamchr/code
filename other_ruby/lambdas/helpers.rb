@@ -2,20 +2,21 @@ load './structures.rb'
 
 def to_integer(lamb)
   counter = 0
-  lamb[-> _ { counter += 1; _ }][3].reduce
+  lamb.reduce[-> _ { counter += 1; _ }][3].reduce
   counter
 end
 
 def to_boolean(lamb)
-  lamb[true][false].reduce
+  lamb.reduce[true][false].reduce
 end
 
 def to_array(l)
   array = []
+  l = l.reduce
 
   until to_boolean(IS_NULL[l])
-    array.push(HEAD[l])
-    l = TAIL[l]
+    array.push(HEAD[l].reduce)
+    l = TAIL[l].reduce
   end
 
   array
@@ -29,4 +30,12 @@ end
 
 def to_string(s)
   to_array(s).map { |c| to_char(c) }.join
+end
+
+def matches(name, lamb, string)
+  return if lamb.inspect == string
+
+  puts "(#{name}) Expected these to be equal:"
+  puts '  ' + lamb.inspect
+  puts '  ' + string
 end

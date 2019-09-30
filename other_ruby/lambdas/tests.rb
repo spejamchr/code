@@ -1,15 +1,5 @@
 load './helpers.rb'
 
-l = LambDeBruijn.method(:abstraction)
-
-def matches(name, lamb, string)
-  return if lamb.inspect == string
-
-  puts "(#{name}) Expected these to be equal:"
-  puts '  ' + lamb.inspect
-  puts '  ' + string
-end
-
 # Test the #inspect method
 matches('I', I, 'l[ 1 ]')
 matches('K', K, 'l[ l[ 2 ] ]')
@@ -52,17 +42,35 @@ matches('to_integer(MOD[THREE][TWO])', to_integer(MOD[THREE][TWO]), '1')
 
 matches('to_integer(DIV[TEN][TWO])', to_integer(DIV[TEN][TWO]), '5')
 
-puts BUZZ.inspect
-puts to_string(BUZZ)
+matches('to_string(BUZZ)', to_string(BUZZ), '"Buzz"')
 
 start = Time.now
-fb = FIZZBUZZ[TWO].reduce
+red = SIMPLE_MAP[TWO].reduce
+puts "Reducing SIMPLE_MAP took #{Time.now - start}s"
+
+start = Time.now
+ar = to_array(red)
+puts "to_array took #{Time.now - start}s"
+
+start = Time.now
+strings = ar.map { |e| to_string(e) }
+puts strings.inspect
+puts "to_strings took #{Time.now - start}s"
+
+start = Time.now
+fb = FIZZBUZZ[HUNDRED]#.reduce
+puts "BEFORE"
+puts
 puts fb.inspect
+puts
+puts "AFTER"
+puts
+puts fb.reduce.inspect
+puts
 puts "Reducing FizzBuzz took #{Time.now - start}s"
 
 start = Time.now
 ar = to_array(fb)
-puts ar.inspect
 puts "to_array took #{Time.now - start}s"
 
 start = Time.now

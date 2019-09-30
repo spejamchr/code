@@ -86,8 +86,9 @@ class LambDeBruijn
       t
     when :abstraction
       "l[ #{t} ]"
+      "(λ #{t})"
     when :application
-      "#{t}[#{Proc === var ? 'PROC' : var.inspect}]"
+      "#{t}(#{Proc === var ? 'PROC' : var.inspect})"
     end
   end
 
@@ -110,7 +111,7 @@ class LambDeBruijn
   end
 
   def reduce
-    result = one_reduction
+    result = reduceable? ? one_reduction : self
     while lamb?(result) && result.reduceable?
       result = result.one_reduction
     end
