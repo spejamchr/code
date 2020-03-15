@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require './graphit.rb'
+
 # A = 0.87416060015039571
 A = 0.7
 
@@ -73,83 +75,6 @@ end
 puts "m: #{m}"
 puts "f(#{m}) = #{f(m)} --- #{m}**2 = #{m**2}"
 
-class Graphit
-  require 'io/console'
-  def initialize(obj, xa, xb, graphs)
-    @obj = obj
-    @graphs = graphs
-
-    # Columns
-    @xa = xa
-    @xb = xb
-
-    @rows, @cols = IO.console.winsize.map { |n| n - 5 }
-    @display = @rows.times.map { @cols.times.map { +' ' } }
-
-    @values = graphs.map { |g| values_for(g) }
-
-    # Rows
-    @ya = @values.flatten.min
-    @yb = @values.flatten.max
-  end
-
-  def bounds
-    {
-      xa: @xa,
-      xb: @xb,
-      ya: @ya,
-      yb: @yb
-    }
-  end
-
-  def to_s
-    @values.zip('A'..).each do |g, l|
-      g.each_with_index do |y, j|
-        @display.fetch(y_to_i(y)).fetch(j)[0] = l
-      end
-    end
-
-    [
-     '#' * (@cols + 2),
-     @display.reverse.map { |r| '#' + r.join + '#' }.join("\n"),
-     '#' * (@cols + 2),
-    ].join("\n")
-  end
-
-  private
-
-  def x_to_j(x)
-    raise "Out of bounds: (#{@xa}..#{@xb}), but was #{x}" unless (@xa..@xb).include? x
-
-    (((x - @xa) / (@xb - @xa)) * (@cols - 1)).round
-  end
-
-  def y_to_i(y)
-    raise "Out of bounds: (#{@ya}..#{@yb}), but was #{y}" unless (@ya..@yb).include? y
-
-    (((y - @ya) / (@yb - @ya)) * (@rows - 1)).round
-  end
-
-  def j_to_x(j)
-    raise "Out of bounds: (0...#{@cols}), but was #{j}" unless (0...@cols).include? j
-
-    (j / @cols.to_f) * (@xb - @xa) + @xa
-  end
-
-  def i_to_y(i)
-    raise "Out of bounds: (0...#{@rows}), but was #{i}" unless (0...@rows).include? i
-
-    (i / @rows.to_f) * (@yb - @ya) + @ya
-  end
-
-  def values_for(g)
-    @cols.times.map do |j|
-      x = j_to_x(j)
-      @obj.send(g, x)
-    end
-  end
-end
-
 def exp(x)
   Math.exp(x) / 10_000.0
 end
@@ -175,7 +100,8 @@ def sl(x)
   (x - x.floor) * (b - a) + a
 end
 
-graph = Graphit.new(self, m * 0.015, m * 0.02, %i[f x2 s exp sl])
-# graph = Graphit.new(self, m * 0.015, m * 0.03, %i[sl])
+fns = %i[f x2 s exp sl].map { |f| method(f) }
+graph = Graphit.new(m * 0.015, m * 0.02, fns)
+# graph = Graphit.new(m * 0.015, m * 0.03, [method(sl)])
 puts graph.bounds
 puts graph.to_s
