@@ -7,17 +7,28 @@ def to_integer(lamb)
 end
 
 def to_boolean(lamb)
-  lamb.reduce[true][false].reduce
+  lamb.reduce[2][1].reduce.term == 2
 end
 
 def to_array(l)
   array = []
-  l = l.reduce
 
-  until to_boolean(IS_NULL[l])
-    array.push(HEAD[l].reduce)
-    l = TAIL[l].reduce
-  end
+  l.reduce[->(n) {
+    puts to_string(n)
+    array << n
+    ->(a) { a }
+  }][->(a) { a }].reduce
+
+  array
+end
+
+def to_clean_array(l)
+  array = []
+
+  l.reduce[->(n) {
+    array << n
+    ->(a) { a }
+  }][->(a) { a }].reduce
 
   array
 end
@@ -29,7 +40,11 @@ def to_char(c)
 end
 
 def to_string(s)
-  to_array(s).map { |c| to_char(c) }.join
+  to_clean_array(s).map { |c|
+    counter = 0
+    c[->(_) { counter += 1; _ }][->(a) { a }].reduce
+    CHARSET.at(counter)
+  }.join
 end
 
 def matches(name, lamb, string)

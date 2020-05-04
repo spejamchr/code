@@ -52,7 +52,6 @@ IS_ZERO = L[ 1[L[ F ]][T] ]
 IS_LESS_OR_EQUAL = L[ L[ IS_ZERO[SUBTRACT[2][1]] ] ]
 IS_EQUAL = L[ L[ AND[IS_LESS_OR_EQUAL[2][1]][IS_LESS_OR_EQUAL[1][2]] ] ]
 
-
 TWO =  L[ L[ 2[2[1]] ] ]
 # TWO = INCREMENT[ONE]
 THREE = INCREMENT[TWO]
@@ -94,8 +93,8 @@ FOLD_RIGHT = L[ L[ L[ 1[3][2] ] ] ]
 MAP = L[ FOLD_RIGHT[L[ CONS[2[1]] ]][NULL] ]
 
 RANGE = Y[L[ L[ L[ IS_LESS_OR_EQUAL[2][1][CONS[2][3[INCREMENT[2]][1]]][NULL] ] ] ]]
-APPEND = L[ L[ FOLD_RIGHT[CONS][1][2] ] ]
-PUSH = L[ L[ APPEND[1][CONS[2][NULL]] ] ]
+APPEND = FOLD_RIGHT[CONS]
+PUSH = L[ APPEND[CONS[1][NULL]] ]
 REVERSE = FOLD_RIGHT[PUSH][NULL]
 
 INCREMENT_ALL = MAP[INCREMENT]
@@ -104,21 +103,31 @@ DOUBLE_ALL = MAP[MULTIPLY[TWO]]
 # Natural numbers with lists
 
 RADIX = TEN
-TO_DIGITS = Y[    L[     L[ PUSH[MOD[1][RADIX]][   IS_LESS_OR_EQUAL[1][DECREMENT[RADIX]][NULL][2[DIV[1][RADIX]]] ] ]]]
-TO_CHAR = I # assume string encoding where 0 encodes '0', 1 encodes '1' etc
-TO_STRING = L[ MAP[TO_CHAR][TO_DIGITS[1]] ]
+TO_DIGITS = Y[ L[ L[ PUSH[MOD[1][RADIX]][ IS_LESS_OR_EQUAL[1][DECREMENT[RADIX]][NULL][2[DIV[1][RADIX]]] ] ]]]
+TO_STRING = TO_DIGITS
 
 # FizzBuzz
 
-FIFTEEN = MULTIPLY[THREE][FIVE]
-FIZZ = MAP[ADD[RADIX]][CONS[ONE][CONS[TWO][CONS[FOUR][CONS[FOUR][NULL]]]]]
-BUZZ = MAP[ADD[RADIX]][CONS[ZERO][CONS[THREE][CONS[FOUR][CONS[FOUR][NULL]]]]]
+# FIFTEEN = MULTIPLY[THREE][FIVE]
+# FIZZ = MAP[ADD[RADIX]][CONS[ONE][CONS[TWO][CONS[FOUR][CONS[FOUR][NULL]]]]]
+# BUZZ = MAP[ADD[RADIX]][CONS[ZERO][CONS[THREE][CONS[FOUR][CONS[FOUR][NULL]]]]]
 
-SIMPLE_MAP = L[ MAP[L[ TO_STRING[1] ]][RANGE[ONE][1] ] ]
+# More efficient FizzBuzz encoding
+b = L[ L[ 2[2[2[2[2[2[2[2[2[2[1]]]]]]]]]] ] ]
+f = L[ L[ 2[2[2[2[2[2[2[2[2[2[2[1]]]]]]]]]]] ] ]
+i = L[ L[ 2[2[2[2[2[2[2[2[2[2[2[2[1]]]]]]]]]]]] ] ]
+u = L[ L[ 2[2[2[2[2[2[2[2[2[2[2[2[2[1]]]]]]]]]]]]] ] ]
+z = L[ L[ 2[2[2[2[2[2[2[2[2[2[2[2[2[2[1]]]]]]]]]]]]]] ] ]
+FIFTEEN = L[ L[ 2[2[2[2[2[2[2[2[2[2[2[2[2[2[2[1]]]]]]]]]]]]]]] ] ]
+
+FIZZ = CONS[f][CONS[i][CONS[z][CONS[z][NULL]]]]
+BUZZ = CONS[b][CONS[u][CONS[z][CONS[z][NULL]]]]
+
+SIMPLE_MAP = L[ MAP[TO_STRING][RANGE[ONE][1] ] ]
 
 FIZZBUZZ =
   L[ MAP[L[ IS_ZERO[MOD[1][FIFTEEN]][
-    APPEND[FIZZ][BUZZ]
+    APPEND[BUZZ][FIZZ]
   ][IS_ZERO[MOD[1][THREE]][
     FIZZ
   ][IS_ZERO[MOD[1][FIVE]][

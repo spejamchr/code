@@ -41,7 +41,7 @@ class LambDeBruijn
 
     def accepts(var, *klasses)
       if klasses.none? { |k| k === var }
-        # raise "Expected one of #{klasses} but got #{var.class}: #{var}"
+        raise "Expected one of #{klasses} but got #{var.class}: #{var}"
       end
     end
 
@@ -86,9 +86,20 @@ class LambDeBruijn
       t
     when :abstraction
       "l[ #{t} ]"
-      "(λ #{t})"
+      "λ #{t}"
     when :application
-      "#{t}(#{Proc === var ? 'PROC' : var.inspect})"
+      if var.is_a?(Proc)
+        "#{t} PROC"
+      else
+        case var.kind
+        when :variable
+          "#{t} #{var.inspect}"
+        when :application
+          "#{t} (#{var.inspect})"
+        when :abstraction
+          "#{t} (#{var.inspect})"
+        end
+      end
     end
   end
 

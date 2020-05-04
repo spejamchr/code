@@ -1,15 +1,15 @@
 load './helpers.rb'
 
 # Test the #inspect method
-matches('I', I, 'l[ 1 ]')
-matches('K', K, 'l[ l[ 2 ] ]')
-matches('S', S, 'l[ l[ l[ 3[1][2[1]] ] ] ]')
-matches('TEST', TEST, '3[1][2[1]]')
+matches('I', I, 'λ 1')
+matches('K', K, 'λ λ 2')
+matches('S', S, 'λ λ λ 3 1 (2 1)')
+matches('TEST', TEST, '3 1 (2 1)')
 matches('I[I].reduce', I[I].reduce, I.inspect)
 matches('I[K].reduce', I[K].reduce, K.inspect)
-matches('K[I].reduce', K[I].reduce, 'l[ l[ 1 ] ]')
-matches('S[K][K][1].reduce', S[K][K][1].reduce, 'l[ 2 ]')
-matches('PARTIAL.reduce', PARTIAL.reduce, 'l[ l[ 1 ][1] ]')
+matches('K[I].reduce', K[I].reduce, 'λ λ 1')
+matches('S[K][K][1].reduce', S[K][K][1].reduce, 'λ 2')
+matches('PARTIAL.reduce', PARTIAL.reduce, 'λ λ 1 1')
 matches('WIKI.reduce', WIKI.reduce, WIKI_REDUCED.inspect)
 
 matches('to_integer(ZERO)', to_integer(ZERO), '0')
@@ -65,7 +65,8 @@ puts fb.inspect
 puts
 puts "AFTER"
 puts
-puts fb.reduce.inspect
+fb = fb.reduce
+puts fb.inspect
 puts
 puts "Reducing FizzBuzz took #{Time.now - start}s"
 
