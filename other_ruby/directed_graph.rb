@@ -45,6 +45,8 @@ class DirectedGraphExplorer
     # This is rather inefficient, but it's so easy. If it works and it's fast,
     # than it would be a premature optimization to do it more efficiently. ;)
     #
+    # Also, this makes it trivial to handle cycles in the graph.
+    #
     # If this needed to be faster, I'd keep track of "explored" vs "to-explore"
     # nodes separately.
     until old_ids == ids.count
